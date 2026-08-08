@@ -1,0 +1,27 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: tp_bdia_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tp_bdia}
+      POSTGRES_USER: ${POSTGRES_USER:-tp_bdia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tp_bdia}
+      # Locale en espanol: la busqueda de texto completo del caso opera sobre documentacion en espanol
+      LANG: es_AR.UTF-8
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Los scripts se montan de solo lectura: se ejecutan a mano y en orden, no en el arranque
+      - ./db:/scripts:ro
+      - ./data:/data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tp_bdia} -d ${POSTGRES_DB:-tp_bdia}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
