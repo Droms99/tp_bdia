@@ -12,7 +12,7 @@ Integrantes: Martin Birman · Gonzalo Castro · Hernando Schidl
 1. [Descripción del caso de uso](#1-descripción-del-caso-de-uso)
 2. [Relevamiento de datos necesarios](#2-relevamiento-de-datos-necesarios)
 3. Clasificación de los datos
-4. Modelo conceptual
+4. [Modelo conceptual](#4-modelo-conceptual)
 5. Modelo de implementación
 6. Normalización y desnormalización
 7. Justificación de la tecnología
@@ -48,10 +48,10 @@ el mismo conjunto de consecuencias:
 - **Uso de documentación derogada**: se responde con un procedimiento que fue reemplazado,
   simplemente porque quien lo consultó no tenía forma de saber que ya no rige.
 
-La solución propuesta es un sistema RAG (*Retrieval-Augmented Generation*): un sistema que
-recupera de una base los fragmentos de documentación más relevantes para una pregunta escrita en
-lenguaje natural, y se los entrega a un modelo de lenguaje para que redacte la respuesta
-**usando solamente ese material**, citando de dónde salió cada afirmación.
+La solución propuesta es un sistema RAG (*Retrieval-Augmented Generation*): recupera de una base
+los fragmentos de documentación más relevantes para una pregunta escrita en lenguaje natural y se
+los entrega a un modelo de lenguaje, que redacta la respuesta **usando solamente ese material** y
+citando de dónde salió cada afirmación.
 
 Esto define dos flujos de datos con exigencias muy distintas. La **ingesta** es un proceso de
 escritura, poco frecuente y controlado: se carga un documento, se lo clasifica, se lo parte en
@@ -62,9 +62,8 @@ se recuperó y qué se respondió.
 
 ### 1.2 Contexto: una entidad financiera regulada
 
-El caso se ambienta en un banco de tamaño medio sujeto a regulación. El dominio no es
-decorativo: es el que hace que las restricciones del problema aparezcan con naturalidad, porque
-allí conviven todos los tipos de documentación que el sistema debe manejar.
+El caso se ambienta en un banco de tamaño medio sujeto a regulación, porque allí conviven todos
+los tipos de documentación que el sistema debe manejar, cada uno con una exigencia distinta.
 
 | Tipo de documentación | Característica que aporta al caso |
 |---|---|
@@ -76,16 +75,15 @@ allí conviven todos los tipos de documentación que el sistema debe manejar.
 | Informes de investigación (fraude interno, casos reportados) | El caso extremo de acceso restringido |
 | Documentación histórica derogada | Debe conservarse por obligación regulatoria y **no debe usarse para responder** |
 
-En una organización así es evidente por qué un analista de sucursal no puede leer el informe de
-una investigación de fraude interno, ni el manual de configuración del core bancario. Y es
-evidente también por qué contestar con un procedimiento derogado no es un error menor: puede
-constituir un incumplimiento regulatorio.
+En una organización así, que un analista de sucursal no pueda leer el informe de una
+investigación de fraude interno no necesita justificación, y contestar con un procedimiento
+derogado puede constituir un incumplimiento regulatorio.
 
 Para poder estimar volúmenes y justificar decisiones de escalabilidad, se toma como referencia
 una organización de aproximadamente 4.000 empleados, de los cuales unos 1.500 son usuarios
 efectivos del sistema, distribuidos en 6 áreas, con del orden de 20.000 documentos vigentes y
-unas 45.000 versiones acumuladas contando el histórico. Estos números son un supuesto de
-trabajo explícito, y se retoman en el punto 2.4 y en el punto 14.
+unas 45.000 versiones acumuladas contando el histórico. Son un supuesto de trabajo y se retoman
+en 2.4 y en 14.
 
 ### 1.3 Alcance del trabajo
 
@@ -101,8 +99,7 @@ y no se construye la aplicación ni su interfaz.
 | Consultas de recuperación y de análisis | Ingeniería de *prompts* y calidad de la redacción |
 
 El modelo de lenguaje se trata como una **caja negra**: recibe una pregunta y un conjunto de
-fragmentos, y devuelve texto. La frontera entre el modelo y la solución de datos es precisa, y
-conviene fijarla desde el principio porque de ella dependen varias decisiones posteriores:
+fragmentos, y devuelve texto. La frontera con la solución de datos queda fijada así:
 
 1. La base entrega al modelo **únicamente** fragmentos que el usuario que pregunta está
    autorizado a ver y que pertenecen a documentación vigente.
@@ -110,15 +107,11 @@ conviene fijarla desde el principio porque de ella dependen varias decisiones po
 3. La base registra qué fragmentos se entregaron, con qué puntaje y en qué orden, junto con la
    respuesta producida.
 
-Todo lo que ocurre entre los pasos 1 y 3 es responsabilidad del modelo. Todo lo que lo habilita
-y lo que queda registrado es responsabilidad del diseño de datos.
-
 ### 1.4 Usuarios
 
 El sistema tiene dos clases de usuario con necesidades opuestas: quienes **consultan** y quienes
-**mantienen** la documentación. La tabla siguiente describe los perfiles considerados; la
-columna de la derecha es tan importante como la del medio, porque es la que define el problema
-central del caso.
+**mantienen** la documentación. En la tabla, la columna de lo que cada perfil no debe ver es la
+que define el problema central del caso.
 
 | Perfil | Qué consulta | Qué no debe poder ver |
 |---|---|---|
@@ -130,8 +123,7 @@ central del caso.
 | Abogado (Legales) | Normativa, contratos marco, dictámenes, políticas | Documentación técnica de sistemas |
 | Curador documental | No consulta para obtener respuestas: carga, clasifica, versiona, publica y deroga documentos, y asigna sus permisos | — |
 
-De este relevamiento de perfiles se desprenden dos observaciones que condicionan el modelo de
-datos y que no son obvias a primera vista:
+De los perfiles se desprenden dos observaciones que condicionan el modelo de datos:
 
 **El permiso no es un atributo del usuario ni del documento, sino de la relación entre ambos.**
 Un mismo informe de investigación es visible para Compliance y para Auditoría Interna, e
@@ -143,9 +135,9 @@ falta una entidad que exprese explícitamente el otorgamiento, y que pueda hacer
 **La vigencia y el permiso son dos ejes independientes.** El auditor interno es el caso que lo
 demuestra: necesita consultar deliberadamente documentación derogada, que para todos los demás
 perfiles no debe alimentar ninguna respuesta. Un documento derogado no es un documento
-inaccesible, es un documento excluido de la recuperación por defecto. Confundir ambas cosas —
-por ejemplo, resolviendo la vigencia con las mismas reglas que el acceso — haría imposible el
-caso de uso de auditoría, que es precisamente el que justifica conservar el histórico.
+inaccesible, es un documento excluido de la recuperación por defecto. Resolver la vigencia con
+las mismas reglas que el acceso haría imposible el caso de uso de auditoría, que es justamente
+el que justifica conservar el histórico.
 
 ### 1.5 Procesos que soporta la solución
 
@@ -176,9 +168,9 @@ completo, y ese conjunto se restringe a lo que el usuario puede ver y a lo que e
 fragmentos resultantes se entregan al modelo, que redacta la respuesta. Se registran la
 pregunta, la respuesta y las fuentes efectivamente utilizadas.
 
-Un detalle de este proceso que conviene subrayar: **la restricción por permisos no la aplica el
-proceso de consulta**. La aplica el motor de base de datos, por debajo, de manera que ninguna
-consulta pueda omitirla. El desarrollo de este mecanismo corresponde al punto 13.
+**La restricción por permisos no la aplica el proceso de consulta.** La aplica el motor de base
+de datos, por debajo, de manera que ninguna consulta pueda omitirla. El mecanismo se desarrolla
+en el punto 13.
 
 **P6 — Realimentación.** El usuario indica si la respuesta le resultó útil y puede dejar un
 comentario. Es el insumo para detectar documentación deficiente o faltante.
@@ -189,9 +181,8 @@ documental se registra de manera permanente y no modificable.
 **P8 — Análisis de uso.** Sobre los registros acumulados se calculan indicadores: qué se
 consulta, qué documentación se cita más, qué preguntas no encuentran respuesta.
 
-La siguiente tabla resume la circulación de datos entre procesos, y es el puente hacia el
-relevamiento del punto 2: todo dato que la solución almacene debe tener un proceso que lo
-produzca y al menos uno que lo consuma.
+Todo dato que la solución almacene tiene un proceso que lo produce y al menos uno que lo
+consume:
 
 | Proceso | Datos que produce | Datos que consume |
 |---|---|---|
@@ -218,9 +209,8 @@ auditoría**; y los **datos derivados** de la capa analítica.
 similitud es ciega al permiso: si un analista de sucursal pregunta cuál es el procedimiento ante
 un caso de fraude interno, el motor va a encontrar como más relevante, con toda razón, el manual
 de investigación de fraude, que ese usuario no tiene derecho a leer. Y a diferencia de una
-consulta convencional, acá el modelo **redacta con ese contenido**: aunque el documento nunca se
-muestre en pantalla, la respuesta filtra lo que decía. El daño no requiere que el usuario vea el
-documento; le alcanza con que el fragmento haya entrado al contexto del modelo.
+consulta convencional, acá el modelo **redacta con ese contenido**: el daño no requiere que el
+usuario vea el documento, le alcanza con que el fragmento haya entrado al contexto del modelo.
 
 **R2 — Respuesta construida sobre documentación desactualizada.** Se contesta con un
 procedimiento derogado o con una versión anterior de una norma. En una entidad regulada esto
@@ -271,21 +261,20 @@ directamente no debe contener texto.
 
 ### 1.8 Decisiones de diseño
 
-Las decisiones que siguen se toman en este punto porque se desprenden del análisis del caso, y
-no de la tecnología elegida. Cada una se desarrolla y se justifica en detalle más adelante.
+Las decisiones que siguen se toman acá porque se desprenden del análisis del caso y no de la
+tecnología elegida.
 
 **D1 — El control de acceso vive dentro del motor de base de datos, no en la aplicación.** Si el
 filtro de permisos lo aplicara el código que consulta, bastaría una consulta mal escrita, un
 recuperador nuevo o un script de análisis para producir una fuga. Al resolverlo en el motor, el
-sistema no puede devolver una fila prohibida **ni aunque la consulta esté mal escrita**. Es la
-única forma de que la ceguera al permiso de la búsqueda por similitud (R1) deje de ser un
-problema: el recuperador puede ser ciego, porque el motor no lo es.
+sistema no puede devolver una fila prohibida **ni aunque la consulta esté mal escrita**. El
+recuperador puede ser ciego al permiso (R1) porque el motor no lo es.
 
 **D2 — Los fragmentos pertenecen a la versión del documento, no al documento.** Si colgaran del
 documento, al publicar una versión nueva habría que decidir qué hacer con los fragmentos
 anteriores, y en cualquiera de los caminos posibles se pierde la capacidad de reconstruir con
-qué texto exacto se respondió una consulta de hace seis meses. Es la decisión que hace posible
-R3 y la que permite conservar el histórico sin contaminar la recuperación.
+qué texto exacto se respondió una consulta de hace seis meses. Es la decisión que permite trazar
+las respuestas (R3) y conservar el histórico sin contaminar la recuperación.
 
 **D3 — La vigencia es un criterio de recuperación, y es independiente del permiso.** El estado
 del documento y su ventana de vigencia participan de la búsqueda, no son un dato informativo. Y
@@ -321,12 +310,10 @@ modelarlo con una columna por atributo posible produce una tabla mayormente vac�
 ## 2. Relevamiento de datos necesarios
 
 Este punto identifica **qué información debe almacenar y qué debe poder consultar** la solución.
-El relevamiento se hizo por proceso — cada dato listado tiene un proceso de 1.5 que lo produce y
-al menos uno que lo consume — y se controló después contra los riesgos de 1.7, para verificar
-que ninguno quedara sin datos que permitan mitigarlo.
+El relevamiento se hizo por proceso y se controló después contra los riesgos de 1.7, para
+verificar que ninguno quedara sin datos que permitan mitigarlo.
 
-Los nombres que se usan acá son los que después toman las entidades del modelo conceptual
-(punto 4), para que no haya que traducir entre un punto y otro del informe.
+Los nombres son los que después toman las entidades del modelo conceptual (punto 4).
 
 ### 2.1 Datos por dominio
 
@@ -384,8 +371,8 @@ fragmento no lleva permisos propios, los hereda.
 hay manera de saber si dos vectores de la base son comparables, ni de planificar una
 revectorización.
 
-Los metadatos de posición del fragmento cumplen una función concreta en la respuesta: permiten
-citar «sección 4.2 del procedimiento», y no solo el documento entero.
+Los metadatos de posición permiten citar «sección 4.2 del procedimiento» y no solo el documento
+entero.
 
 #### D. Uso del sistema
 
@@ -403,7 +390,7 @@ se alcanzan desde ahí.
 
 Guardar la representación vectorial de la pregunta permite agrupar consultas semánticamente
 equivalentes y detectar temas sin cobertura documental, a costa de aumentar el tamaño de una
-tabla que ya crece rápido. Es una decisión con impacto en el punto 14.
+tabla que ya crece rápido. El costo se retoma en el punto 14.
 
 #### E. Auditoría
 
@@ -434,7 +421,7 @@ de fragmentos**: el texto no puede salir del ámbito donde está protegido.
 ### 2.2 Datos que la solución debe poder consultar
 
 El relevamiento incluye los patrones de acceso, porque son los que justifican qué se almacena y
-cómo. Cada pregunta de esta lista es respondible con los datos identificados en 2.1.
+cómo. Cada pregunta se responde con los datos identificados en 2.1.
 
 | Pregunta que el sistema debe poder responder | Datos que la habilitan |
 |---|---|
@@ -451,10 +438,9 @@ cómo. Cada pregunta de esta lista es respondible con los datos identificados en
 | ¿Este archivo ya fue cargado antes? | Hash SHA-256 en `documento_version` |
 | ¿Qué documentos tienen un metadato específico de su tipo, por ejemplo el organismo emisor? | Metadatos variables de `documento` |
 
-Las tres primeras y la quinta son consultas del camino crítico de la aplicación: se ejecutan en
-cada pregunta y su latencia es la latencia percibida del sistema. Las demás son de análisis o de
-auditoría, con exigencias de tiempo de respuesta mucho más laxas. Esta distinción es la que
-después determina qué se indexa y qué se precalcula (punto 14).
+Las tres primeras y la quinta son del camino crítico: se ejecutan en cada pregunta y su latencia
+es la latencia percibida del sistema. Las demás son de análisis o de auditoría, con exigencias
+mucho más laxas. La distinción determina qué se indexa y qué se precalcula (punto 14).
 
 ### 2.3 Datos que deliberadamente quedan fuera de la base
 
@@ -468,8 +454,7 @@ después determina qué se indexa y qué se precalcula (punto 14).
 ### 2.4 Volumen, crecimiento y retención
 
 Estimaciones sobre la organización de referencia de 1.2, como insumo del punto 14. El objetivo
-no es la precisión sino distinguir **qué crece con la organización y qué crece con el uso**, que
-son dos regímenes completamente distintos.
+no es la precisión sino distinguir **qué crece con la organización y qué crece con el uso**.
 
 | Dato | Orden de magnitud | Cómo crece | Retención |
 |---|---|---|---|
@@ -483,12 +468,11 @@ son dos regímenes completamente distintos.
 | `respuesta_fuente` | 5 a 8 por respuesta: varios millones por año | **Con el uso** | Necesaria mientras la respuesta sea auditable |
 | `log_acceso`, `auditoria` | Decenas de millones acumulados | **Con el uso** | Definida por la política de auditoría, típicamente varios años |
 
-La conclusión operativa del relevamiento es que hay dos grupos de datos con exigencias opuestas.
-El catálogo documental y sus fragmentos son grandes pero estables, y se optimizan para lectura.
-Las tablas de eventos —consultas, respuestas, fuentes, accesos y auditoría— crecen de forma
-indefinida con el uso, se escriben mucho más de lo que se leen y casi siempre se consultan
-acotadas por fecha. Esa diferencia es la que justifica tratarlas con una estrategia de
-almacenamiento distinta, que se desarrolla en el punto 14.
+Quedan así dos grupos con exigencias opuestas. El catálogo documental y sus fragmentos son
+grandes pero estables, y se optimizan para lectura. Las tablas de eventos —consultas, respuestas,
+fuentes, accesos y auditoría— crecen de forma indefinida con el uso, se escriben mucho más de lo
+que se leen y casi siempre se consultan acotadas por fecha. Esa diferencia justifica tratarlas
+con una estrategia de almacenamiento distinta (punto 14).
 
 ### 2.5 Trazabilidad entre requisitos y datos relevados
 
@@ -519,7 +503,192 @@ cubren.
 
 ## 4. Modelo conceptual
 
-*(Pendiente — Gonzalo.)*
+Los diagramas entidad-relación están en
+[`docs/diagramas/modelo_conceptual.md`](diagramas/modelo_conceptual.md): una vista general y tres
+vistas por subdominio con los atributos de cada entidad. Este punto justifica lo que ahí se
+representa.
+
+### 4.1 Criterio del modelo
+
+El modelo describe **qué información existe y cómo se relaciona**, con el identificador de cada
+entidad pero sin tipos de dato, claves foráneas ni estrategias de almacenamiento: eso es el punto
+5. Se siguieron tres criterios.
+
+**Las relaciones muchos a muchos con atributos propios se modelan como entidad.** Un usuario
+desempeña varios roles y un rol lo desempeñan varios usuarios: esa relación no guarda nada más
+que el vínculo, y se representa directamente. En cambio, el otorgamiento de acceso guarda quién
+lo concedió y hasta cuándo, y la cita de una fuente guarda el puntaje y la posición en el
+ranking: esa información no pertenece a ninguno de los dos extremos, así que `acl_documento`,
+`respuesta_fuente` y `documento_relacion` son entidades.
+
+**Todo atributo derivable no se almacena como atributo.** El nivel de confidencialidad de un
+fragmento no se guarda en el fragmento: se deduce de su documento. Guardarlo dos veces
+introduciría la posibilidad de que difieran, y en este caso esa divergencia sería una fuga.
+
+**Las entidades de eventos no se actualizan.** Consultas, respuestas, fuentes citadas y registros
+de auditoría solo se insertan: una respuesta que se puede editar deja de ser evidencia de lo que
+el sistema contestó.
+
+### 4.2 Entidades
+
+**Organización y control de acceso**
+
+| Entidad | Qué representa | Se identifica por |
+|---|---|---|
+| `area` | Unidad organizativa propietaria de documentación | Nombre |
+| `usuario` | Persona que consulta o administra documentación | Identificador corporativo |
+| `rol` | Función que agrupa permisos sobre el sistema | Nombre |
+| `permiso` | Acción habilitada: consultar, cargar, publicar, derogar, otorgar acceso, auditar | Código |
+| `nivel_confidencialidad` | Escala ordenada de clasificación de la información | Nombre y orden |
+| `acl_documento` | Otorgamiento de acceso a un documento para un sujeto, con su vigencia | Documento + sujeto + vigencia |
+
+**Documentación y contenido**
+
+| Entidad | Qué representa | Se identifica por |
+|---|---|---|
+| `tipo_documento` | Clase de documento, que determina qué metadatos propios tiene | Nombre |
+| `documento` | Unidad documental estable a lo largo de sus versiones | Código documental |
+| `documento_version` | Estado publicado del documento en un momento dado | Documento + número de versión |
+| `documento_relacion` | Vínculo dirigido entre dos documentos y su tipo | Origen + destino + tipo |
+| `etiqueta` | Término de clasificación transversal a las áreas | Nombre |
+| `chunk` | Fragmento recuperable de una versión, con su representación vectorial | Versión + orden |
+| `modelo_embedding` | Modelo con el que se generó una representación vectorial, y su dimensión | Nombre |
+
+**Uso y auditoría**
+
+| Entidad | Qué representa | Se identifica por |
+|---|---|---|
+| `consulta` | Pregunta formulada por un usuario, con su representación vectorial | Sustituto |
+| `respuesta` | Texto generado para una consulta | Consulta |
+| `respuesta_fuente` | Fragmento que alimentó una respuesta, con su puntaje y posición | Respuesta + fragmento |
+| `feedback` | Valoración de utilidad de una respuesta | Respuesta + usuario |
+| `log_acceso` | Acceso a un documento, concedido o denegado | Sustituto |
+| `auditoria` | Cambio sobre datos sensibles, con su valor anterior y posterior | Sustituto |
+
+`documento` y `documento_version` son dos entidades y no una porque cumplen funciones distintas:
+el documento es la identidad estable a la que se refieren las relaciones y los otorgamientos de
+acceso —que no deberían reasignarse en cada publicación—, y la versión es el contenido concreto,
+inmutable, que se fragmenta y se cita. Es la contracara de la decisión D2 del punto 1.
+
+### 4.3 Relaciones y cardinalidades
+
+| Relación | Cardinalidad | Lectura |
+|---|---|---|
+| `area` – `usuario` | 1 : N | Un área agrupa a varios usuarios y cada usuario pertenece a un área |
+| `area` – `documento` | 1 : N | Cada documento tiene un área propietaria |
+| `usuario` – `rol` | N : N | Un usuario desempeña varios roles y viceversa |
+| `rol` – `permiso` | N : N | Un rol concede varios permisos y un permiso está en varios roles |
+| `nivel_confidencialidad` – `documento` | 1 : N | Cada documento tiene exactamente una clasificación |
+| `nivel_confidencialidad` – `usuario` | 1 : N | Cada usuario tiene un nivel de habilitación |
+| `documento` – `acl_documento` | 1 : N | Un documento puede tener varios otorgamientos |
+| `acl_documento` – sujeto (`area`, `rol` o `usuario`) | 1 : N | Cada otorgamiento tiene exactamente un sujeto, de uno de los tres tipos |
+| `usuario` – `acl_documento` (otorgante) | 1 : N | Todo otorgamiento registra quién lo concedió |
+| `tipo_documento` – `documento` | 1 : N | Cada documento es de un solo tipo |
+| `documento` – `documento_version` | 1 : N | Todo documento tiene al menos una versión |
+| `documento` – `documento_relacion` | 1 : N (dos veces) | Un documento es origen y/o destino de varias relaciones |
+| `documento` – `etiqueta` | N : N | Etiquetado libre en ambos sentidos |
+| `documento_version` – `chunk` | 1 : N | Los fragmentos pertenecen a una versión |
+| `modelo_embedding` – `chunk` | 1 : N | Cada fragmento se vectorizó con un modelo |
+| `usuario` – `consulta` | 1 : N | Toda consulta tiene un autor identificado |
+| `consulta` – `respuesta` | 1 : 1 | Una consulta produce a lo sumo una respuesta |
+| `respuesta` – `respuesta_fuente` | 1 : N | Toda respuesta se apoya en al menos un fragmento |
+| `chunk` – `respuesta_fuente` | 1 : N | Un fragmento puede citarse en muchas respuestas |
+| `respuesta` – `feedback` | 1 : N | Una respuesta puede recibir feedback de varios usuarios |
+| `usuario` – `log_acceso`, `auditoria` | 1 : N | Todo evento registra quién lo produjo |
+
+El 1 y la N fijan el máximo de cada extremo. Dos mínimos merecen aclaración:
+
+**Una consulta puede quedarse sin respuesta.** No es un error del sistema: es el caso en que la
+recuperación no encontró material autorizado y vigente para contestar. Exigir una respuesta por
+consulta obligaría a inventar respuestas vacías y borraría la señal más valiosa del sistema, que
+es la lista de preguntas sin cobertura.
+
+**Una versión puede no tener ningún fragmento.** Una versión recién ingerida todavía no está
+fragmentada. La obligación de tener al menos uno aplica a las versiones publicadas, no a todas, y
+por eso se expresa como restricción de dominio (RD9) y no como cardinalidad.
+
+### 4.4 La regla de acceso
+
+Es la restricción más importante del modelo, la que después se implementa dentro del motor
+(decisión D1). Un usuario `u` puede acceder a un documento `d` si y solo si se cumplen **las dos**
+condiciones:
+
+```
+Acceso(u, d)  ⟺   orden(nivel(d)) ≤ orden(habilitacion(u))
+                  ∧ ( nivel(d) = público  ∨  ∃ otorgamiento vigente que alcance a u )
+```
+
+donde un otorgamiento alcanza a `u` si su sujeto es el área de `u`, alguno de los roles de `u`, o
+`u` en persona, y está dentro de su ventana de vigencia.
+
+Esto resuelve la duda que quedó abierta sobre si el nivel de confidencialidad debía ser una
+**jerarquía ordenada** o un conjunto de permisos sueltos. Es una jerarquía ordenada —quien está
+habilitado a *confidencial* lo está también a *interno* y a *público*—, pero **no alcanza por sí
+sola**:
+
+- **Si el acceso dependiera solo del nivel**, cualquier usuario con habilitación alta vería toda
+  la documentación de su nivel o inferior. Contradice el relevamiento de usuarios del punto 1.4:
+  un administrador de sistemas necesita habilitación alta para los manuales del core, y eso no
+  debe darle acceso a los informes de investigación de fraude, que están en el mismo nivel.
+- **Si el acceso dependiera solo de los otorgamientos**, un otorgamiento mal emitido —el riesgo
+  R6, el más frecuente de todos— alcanzaría para exponer un documento restringido a quien no
+  tiene habilitación para ese nivel.
+
+Al exigir las dos condiciones, el nivel funciona como un techo que ningún otorgamiento puede
+levantar, y el otorgamiento como una llave que ninguna habilitación reemplaza. Un error humano en
+la clasificación o en la asignación de permisos deja de ser suficiente, por sí solo, para
+producir una fuga.
+
+La excepción de los documentos públicos evita el absurdo de tener que emitir un otorgamiento por
+cada área para documentación que, por definición, puede leer cualquiera.
+
+### 4.5 Restricciones del dominio
+
+Restricciones que el modelo debe garantizar y que **no se derivan de las cardinalidades**. Cómo
+se verifica cada una es materia de los puntos 5 y 8.
+
+| # | Restricción | Cómo se verifica |
+|---|---|---|
+| RD1 | Un fragmento no tiene clasificación ni vigencia propias: las hereda de su versión y de su documento | Derivación, nunca atributo duplicado |
+| RD2 | Las ventanas de vigencia de las versiones de un mismo documento no se solapan: hay a lo sumo una versión vigente en cada instante | Restricción de exclusión sobre el rango de fechas |
+| RD3 | `vigente_hasta` es nulo (vigencia abierta) o posterior a `vigente_desde` | Restricción de verificación |
+| RD4 | Un documento en estado *derogado* no puede tener ninguna versión con vigencia abierta | Disparador |
+| RD5 | Las relaciones *deroga* y *reemplaza* no admiten ciclos: ningún documento se deroga a sí mismo, ni directa ni transitivamente | Verificación en el recorrido recursivo |
+| RD6 | El hash del archivo original es único en todo el sistema | Restricción de unicidad |
+| RD7 | Todo otorgamiento tiene exactamente un sujeto: área, rol o usuario, nunca dos ni ninguno | Arco exclusivo, ver 4.6 |
+| RD8 | Quien otorga un acceso debe tener el permiso de otorgar acceso | Regla de aplicación, auditada |
+| RD9 | Toda versión publicada tiene al menos un fragmento, y sus órdenes son únicos y consecutivos | Unicidad + validación de la ingesta |
+| RD10 | Las posiciones de las fuentes de una respuesta son únicas y consecutivas desde 1 | Restricción de unicidad |
+| RD11 | Todo fragmento citado en una respuesta era accesible para el autor de la consulta en el momento de consultarla | Se garantiza por construcción: la recuperación ya filtró |
+| RD12 | Todos los fragmentos comparables entre sí comparten modelo de vectorización y dimensión | Referencia a `modelo_embedding` |
+| RD13 | Las entidades de auditoría no admiten modificación ni borrado | Permisos de la base, no de la aplicación |
+| RD14 | La escala de niveles de confidencialidad es total y su orden no se reasigna | Unicidad sobre el orden |
+| RD15 | Un usuario deja a lo sumo un feedback por respuesta | Restricción de unicidad |
+
+RD11 es la que cierra el modelo de seguridad. Todas las demás se pueden verificar mirando la
+base; esta se sostiene en que la única vía por la que un fragmento llega a `respuesta_fuente` es
+la recuperación, y la recuperación ya está filtrada por la regla de 4.4. Si existiera otro camino
+para insertar fuentes, la garantía se rompe: es la razón por la que el filtro tiene que vivir en
+el motor y no en el código que consulta.
+
+### 4.6 Qué queda pendiente para el modelo lógico
+
+Tres cuestiones se identifican acá pero se resuelven en el punto 5, porque dependen de decisiones
+de implementación:
+
+**El sujeto del otorgamiento.** `acl_documento` apunta a un área, a un rol o a un usuario, nunca a
+más de uno. Conceptualmente es un arco exclusivo; en el modelo lógico hay que optar entre tres
+referencias opcionales con una verificación que garantice que exactamente una está presente, o
+tres entidades separadas. La primera opción mantiene una sola tabla que las políticas de acceso
+consultan; la segunda es más estricta pero triplica esa consulta.
+
+**Los metadatos variables por tipo de documento.** El modelo conceptual dice que `documento` tiene
+metadatos que dependen de su tipo. Cómo se representan —y por qué no como una tabla de atributos
+genéricos— es la decisión D6, que se desarrolla en los puntos 5, 6 y 11.
+
+**La representación de la escala de niveles.** Que la jerarquía sea ordenada permite representarla
+como una entidad con un atributo de orden o como un tipo enumerado. Se define en el punto 5 junto
+con el resto de los catálogos.
 
 ## 5. Modelo de implementación
 

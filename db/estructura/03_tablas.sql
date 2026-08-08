@@ -10,10 +10,9 @@
 --   D5  el archivo original no se almacena: URI + hash + texto extraido
 --   D6  los metadatos variables por tipo de documento van en JSONB
 --
--- Las tablas de eventos se declaran particionadas por rango de fecha. Sus
--- particiones se crean en 04_particiones.sql: sin ellas la tabla existe pero no
--- acepta inserciones, que es el comportamiento buscado (obliga a que el
--- mantenimiento de particiones sea explicito).
+-- Las tablas de eventos se declaran particionadas por rango de fecha; sus
+-- particiones se crean en 04_particiones.sql. Sin particiones la tabla existe pero
+-- no acepta inserciones.
 -- =============================================================================
 
 SET search_path = core, public;
@@ -31,7 +30,7 @@ CREATE TABLE area (
     creado_en       timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT area_nombre_no_vacio CHECK (length(trim(nombre)) > 0)
 );
-COMMENT ON TABLE area IS 'Unidades organizativas del banco. Cambia muy poco y es la unidad mas habitual de otorgamiento de permisos.';
+COMMENT ON TABLE area IS 'Unidades organizativas del banco. Es la granularidad mas habitual de otorgamiento de permisos.';
 
 
 CREATE TABLE rol (
@@ -76,8 +75,7 @@ CREATE TABLE usuario (
     -- seguir siendo auditables.
     CONSTRAINT usuario_baja_coherente CHECK ((activo AND baja_en IS NULL) OR (NOT activo AND baja_en IS NOT NULL))
 );
-COMMENT ON TABLE usuario IS 'Personas que usan el sistema. Contiene datos personales (R7): nombre y correo son datos sensibles.';
-COMMENT ON COLUMN usuario.identidad_ext IS 'Identificador en el sistema de identidad corporativo.';
+COMMENT ON TABLE usuario IS 'Personas que usan el sistema. Contiene datos personales (R7).';
 
 
 CREATE TABLE usuario_rol (
@@ -92,21 +90,18 @@ COMMENT ON TABLE usuario_rol IS 'Un usuario puede tener mas de un rol (por ejemp
 CREATE TABLE nivel_confidencialidad (
     id              smallint    PRIMARY KEY,
     nombre          text        NOT NULL UNIQUE,
-    -- Escala ordenada: quien alcanza un nivel alcanza tambien los inferiores.
-    -- Decidido en el relevamiento (informe 2.1.A).
     orden           smallint    NOT NULL UNIQUE,
     descripcion     text,
     CONSTRAINT nivel_orden_positivo CHECK (orden > 0)
 );
-COMMENT ON TABLE nivel_confidencialidad IS 'Escala ordenada: publico < interno < confidencial < restringido. El orden es lo que permite expresar el acceso como comparacion y no como enumeracion.';
+COMMENT ON TABLE nivel_confidencialidad IS 'Escala ordenada: publico < interno < confidencial < restringido. El orden permite expresar el acceso como comparacion y no como enumeracion.';
 
 
 CREATE TABLE acl_documento (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     documento_id    bigint      NOT NULL,   -- FK declarada mas abajo (dependencia circular con documento)
-    -- El otorgamiento se expresa en una de tres granularidades, nunca en mas de
-    -- una a la vez. Es la entidad que materializa la observacion de 1.4: el
-    -- permiso es una propiedad de la relacion usuario-documento.
+    -- El permiso es una propiedad de la relacion usuario-documento (informe 1.4) y
+    -- se expresa en una de tres granularidades, nunca en mas de una a la vez.
     area_id         integer     REFERENCES area(id)    ON DELETE CASCADE,
     rol_id          integer     REFERENCES rol(id)     ON DELETE CASCADE,
     usuario_id      bigint      REFERENCES usuario(id) ON DELETE CASCADE,
@@ -120,7 +115,6 @@ CREATE TABLE acl_documento (
     CONSTRAINT acl_vigencia_coherente    CHECK (vigente_hasta IS NULL OR vigente_hasta > vigente_desde)
 );
 COMMENT ON TABLE acl_documento IS 'Otorgamiento de acceso a un documento, por area, rol o usuario, con ventana de vigencia. Es la tabla mas critica del modelo: de ella dependen las politicas de seguridad por fila.';
-COMMENT ON CONSTRAINT acl_una_sola_granularidad ON acl_documento IS 'Exactamente una de las tres columnas de destinatario debe estar informada.';
 
 
 -- =============================================================================
@@ -151,8 +145,7 @@ CREATE TABLE documento (
     estado              estado_documento NOT NULL DEFAULT 'borrador',
     -- D6: los atributos que varian entre tipos de documento (organismo emisor de
     -- una norma, ambiente de un manual de sistema) van aca y no en columnas
-    -- propias, que quedarian mayormente vacias, ni en una tabla de atributos
-    -- genericos, que degrada consultas e integridad.
+    -- propias, que quedarian mayormente vacias.
     metadatos           jsonb       NOT NULL DEFAULT '{}'::jsonb,
     creado_por          bigint      NOT NULL REFERENCES usuario(id),
     creado_en           timestamptz NOT NULL DEFAULT now(),
@@ -235,7 +228,7 @@ CREATE TABLE modelo_embedding (
     CONSTRAINT modelo_dimension_valida CHECK (dimension BETWEEN 1 AND 2000),
     CONSTRAINT modelo_metrica_valida   CHECK (metrica IN ('coseno', 'l2', 'producto_interno'))
 );
-COMMENT ON TABLE modelo_embedding IS 'Modelo con el que se vectorizo cada fragmento. Sin este registro no hay forma de saber si dos vectores son comparables ni de planificar una revectorizacion (R5).';
+COMMENT ON TABLE modelo_embedding IS 'Modelo con el que se vectorizo cada fragmento. Sin el no hay forma de saber si dos vectores son comparables ni de planificar una revectorizacion (R5).';
 
 
 CREATE TABLE chunk (
@@ -247,12 +240,9 @@ CREATE TABLE chunk (
     texto                   text        NOT NULL,
     tokens                  integer     NOT NULL,
     modelo_embedding_id     smallint    NOT NULL REFERENCES modelo_embedding(id),
-    -- La dimension se fija en el tipo de la columna. Cambiar de modelo a otra
-    -- dimension exige una columna nueva y una revectorizacion planificada: por eso
-    -- se registra el modelo en cada fragmento.
+    -- La dimension se fija en el tipo de la columna: cambiar a un modelo de otra
+    -- dimension exige una columna nueva y una revectorizacion planificada.
     embedding               vector(1024),
-    -- Representacion para busqueda de texto completo. Es una columna generada:
-    -- no puede quedar desincronizada del texto porque no se escribe a mano.
     tsv                     tsvector GENERATED ALWAYS AS (
                                 to_tsvector('public.espanol_unaccent'::regconfig, texto)
                             ) STORED,
@@ -266,21 +256,20 @@ CREATE TABLE chunk (
     CONSTRAINT chunk_texto_no_vacio         CHECK (length(trim(texto)) > 0),
     CONSTRAINT chunk_metadatos_objeto       CHECK (jsonb_typeof(metadatos) = 'object')
 );
-COMMENT ON TABLE chunk IS 'Unidad de recuperacion: lo que se busca, lo que entra al contexto del modelo de lenguaje y, por lo tanto, lo que puede filtrar informacion. Es la entidad de mayor criticidad y mayor volumen del modelo.';
+COMMENT ON TABLE chunk IS 'Unidad de recuperacion: lo que se busca y lo que entra al contexto del modelo de lenguaje. Es la entidad de mayor criticidad y mayor volumen del modelo.';
 COMMENT ON COLUMN chunk.embedding IS 'Representacion vectorial del fragmento. Nulo mientras la vectorizacion esta pendiente.';
-COMMENT ON COLUMN chunk.tsv IS 'Columna generada: no puede desincronizarse del texto.';
+COMMENT ON COLUMN chunk.tsv IS 'Representacion para busqueda de texto completo en espanol. Columna generada: no puede desincronizarse del texto.';
 
 
 -- =============================================================================
 -- D. Uso del sistema
 -- =============================================================================
--- Estas tablas crecen con el uso y no con la organizacion, se escriben mucho mas
--- de lo que se leen y casi siempre se consultan acotadas por fecha (informe 2.4).
--- Por eso se declaran particionadas por rango mensual sobre creado_en.
+-- Crecen con el uso y casi siempre se consultan acotadas por fecha (informe 2.4):
+-- van particionadas por rango mensual sobre creado_en.
 --
 -- En una tabla particionada la clave primaria debe incluir la clave de particion.
 -- De ahi que las claves sean (id, creado_en) y que las claves foraneas entre estas
--- tablas arrastren la fecha: eso ademas garantiza que padre e hijo caigan en la
+-- tablas arrastren la fecha, lo que ademas garantiza que padre e hijo caigan en la
 -- misma particion.
 -- =============================================================================
 
@@ -289,8 +278,7 @@ CREATE TABLE consulta (
     usuario_id          bigint      NOT NULL REFERENCES usuario(id),
     texto               text        NOT NULL,
     -- Permite agrupar consultas semanticamente equivalentes y detectar temas sin
-    -- cobertura documental. Decidido en el relevamiento; su costo en tamanio queda
-    -- anotado como tema del punto 14.
+    -- cobertura documental. Su costo en tamanio queda como tema del punto 14.
     embedding           vector(1024),
     modelo_embedding_id smallint    REFERENCES modelo_embedding(id),
     latencia_ms         integer,
@@ -323,9 +311,8 @@ COMMENT ON TABLE respuesta IS 'Respuesta generada a partir de los fragmentos rec
 CREATE TABLE respuesta_fuente (
     respuesta_id        bigint      NOT NULL,
     chunk_id            bigint      NOT NULL REFERENCES chunk(id),
-    -- D4: no basta con saber que documentos se consultaron. Se registra el
-    -- fragmento, su puntaje y su posicion en el ranking, que es la granularidad
-    -- que permite explicar una respuesta y no solo listar fuentes.
+    -- D4: el puntaje y la posicion en el ranking son la granularidad que permite
+    -- explicar una respuesta y no solo listar sus fuentes.
     posicion            smallint    NOT NULL,
     puntaje             real        NOT NULL,
     creado_en           timestamptz NOT NULL DEFAULT now(),
@@ -355,9 +342,8 @@ COMMENT ON TABLE feedback IS 'Valoracion del usuario sobre una respuesta. El com
 -- =============================================================================
 -- E. Auditoria
 -- =============================================================================
--- Ambas son de solo insercion. Un registro de auditoria modificable no sirve como
--- registro de auditoria; que no se pueda actualizar ni borrar se garantiza con
--- permisos y politicas en 05_rls.sql, no solo por convencion.
+-- Ambas son de solo insercion. Que no se puedan actualizar ni borrar se garantiza
+-- con permisos y politicas en 05_rls.sql, no por convencion.
 -- =============================================================================
 
 CREATE TABLE log_acceso (
@@ -372,7 +358,7 @@ CREATE TABLE log_acceso (
     CONSTRAINT log_accion_valida    CHECK (accion IN ('consulta', 'lectura', 'descarga', 'recuperacion')),
     CONSTRAINT log_objeto_informado CHECK (num_nonnulls(documento_id, chunk_id) >= 1)
 ) PARTITION BY RANGE (creado_en);
-COMMENT ON TABLE log_acceso IS 'Quien accedio a que documento o fragmento, cuando y en que contexto. Responde "quien accedio a este documento confidencial en los ultimos noventa dias".';
+COMMENT ON TABLE log_acceso IS 'Quien accedio a que documento o fragmento, cuando y en que contexto.';
 
 
 CREATE TABLE auditoria (
@@ -381,8 +367,8 @@ CREATE TABLE auditoria (
     entidad             text        NOT NULL,
     entidad_id          bigint      NOT NULL,
     operacion           text        NOT NULL,
-    -- Estado anterior y posterior del registro afectado. Se guardan como documento
-    -- estructurado porque la forma cambia segun la entidad auditada.
+    -- Estado anterior y posterior del registro afectado, en JSONB porque la forma
+    -- cambia segun la entidad auditada.
     datos_antes         jsonb,
     datos_despues       jsonb,
     creado_en           timestamptz NOT NULL DEFAULT now(),
@@ -390,4 +376,4 @@ CREATE TABLE auditoria (
     CONSTRAINT auditoria_operacion_valida CHECK (operacion IN ('alta', 'modificacion', 'baja')),
     CONSTRAINT auditoria_algun_dato       CHECK (num_nonnulls(datos_antes, datos_despues) >= 1)
 ) PARTITION BY RANGE (creado_en);
-COMMENT ON TABLE auditoria IS 'Cambios sobre datos sensibles: alta y baja de permisos, cambios de estado documental, cambios de clasificacion. Es de maxima criticidad y de solo insercion.';
+COMMENT ON TABLE auditoria IS 'Cambios sobre datos sensibles: alta y baja de permisos, cambios de estado documental, cambios de clasificacion.';

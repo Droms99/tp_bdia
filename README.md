@@ -58,8 +58,8 @@ PostgreSQL 17 con pgvector, como motor único:
 | Trazabilidad | Tablas de auditoría append-only |
 | Volumen de eventos | Particionado declarativo por fecha |
 
-La justificación de esta elección —y de las tecnologías que se analizaron y descartaron— se
-desarrolla en el informe técnico.
+La elección, y las tecnologías que se analizaron y descartaron, se justifican en el informe
+técnico.
 
 ## Estructura del repositorio
 
@@ -94,5 +94,4 @@ make down      # detiene el entorno
 make reset     # elimina el volumen y los datos
 ```
 
-La base queda expuesta en `localhost:5433` (se usa el 5433 para no chocar con una instalación
-local de PostgreSQL en el puerto por defecto).
+La base queda expuesta en `localhost:5433`, para no chocar con un PostgreSQL local en el 5432.

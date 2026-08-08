@@ -1,8 +1,8 @@
 -- =============================================================================
 -- 01 - Extensiones
 -- =============================================================================
--- Cada extension responde a una necesidad concreta del caso; no se instala nada
--- que no tenga un uso identificado en el relevamiento (informe, punto 2).
+-- Cada extension responde a una necesidad identificada en el relevamiento
+-- (informe, punto 2).
 -- =============================================================================
 
 -- Busqueda por similitud sobre los fragmentos (informe 2.1.C).
@@ -26,8 +26,8 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- acentos: 'gestion' y 'gestión' producen lexemas distintos. Se antepone el
 -- diccionario unaccent al lematizador para que ambas formas colapsen.
 --
--- Se crea en el esquema public para que sea alcanzable desde cualquier search_path
--- sin calificar, y se referencia siempre calificada en las columnas generadas.
+-- Va en el esquema public para ser alcanzable desde cualquier search_path, y se
+-- referencia siempre calificada en las columnas generadas.
 -- =============================================================================
 
 DROP TEXT SEARCH CONFIGURATION IF EXISTS public.espanol_unaccent;

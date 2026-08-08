@@ -7,10 +7,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-tp_bdia}
       POSTGRES_USER: ${POSTGRES_USER:-tp_bdia}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tp_bdia}
-      # La imagen no trae la locale es_AR: se inicializa en C.UTF-8. No afecta a la
-      # busqueda de texto completo en espanol, que depende de la configuracion
-      # 'espanol_unaccent' definida en db/estructura/01_extensiones.sql y no de la
-      # locale del cluster.
+      # La imagen no trae la locale es_AR, asi que se inicializa en C.UTF-8. No
+      # afecta a la busqueda en espanol, que depende de la configuracion
+      # 'espanol_unaccent' de 01_extensiones.sql y no de la locale del cluster.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
