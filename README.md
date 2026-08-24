@@ -76,7 +76,6 @@ tp_bdia/
 │   ├── consultas/         # consultas representativas
 │   └── indices_vistas/    # índices y vistas materializadas
 ├── etl/                   # fragmentación, embeddings y generación del dataset
-├── nosql/                 # análisis del paradigma NoSQL para el caso
 ├── vectorial/             # modelo de datos vectorial
 └── anexos/                # material complementario
 ```

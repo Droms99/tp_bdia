@@ -557,6 +557,12 @@ El caso menos evidente es el embedding. No es texto, pero tampoco es un dato té
 deriva del contenido y permite reconstruirlo parcialmente. Se lo trata con el mismo nivel de
 confidencialidad que el fragmento del que proviene, y no como un vector anónimo.
 
+Esta clasificación se aplica al propio trabajo: **el conjunto de datos de ejemplo usa identidades
+seudonimizadas** —nombres ficticios y direcciones sobre un dominio de ejemplo—, con forma
+realista para que las consultas de demostración sean creíbles, pero sin datos personales
+verdaderos. El repositorio es público, y un trabajo que argumenta cómo se protegen los datos
+personales no puede exhibirlos. La generación se desarrolla en el punto 9.
+
 ### 3.4 Síntesis por entidad
 
 | Entidad | Estructura | Función | Sensibilidad |
