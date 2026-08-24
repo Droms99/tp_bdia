@@ -15,7 +15,7 @@ Integrantes: Martin Birman · Gonzalo Castro · Hernando Schidl
 4. [Modelo conceptual](#4-modelo-conceptual)
 5. [Modelo de implementación](#5-modelo-de-implementación)
 6. [Normalización, desnormalización y embebido](#6-normalización-desnormalización-y-embebido)
-7. Justificación de la tecnología
+7. [Selección y justificación de la tecnología](#7-selección-y-justificación-de-la-tecnología)
 8. Implementación mínima
 9. Datos de ejemplo
 10. Consultas representativas
@@ -994,9 +994,115 @@ cuando el motor la impone o la mantiene solo. No se acepta ninguna redundancia q
 la aplicación la mantenga sincronizada, porque en este modelo una divergencia entre dos copias del
 mismo dato de clasificación no produce un informe mal sumado: produce una filtración.
 
-## 7. Justificación de la tecnología
+## 7. Selección y justificación de la tecnología
 
-*(Pendiente — a asignar.)*
+La solución se implementa sobre **PostgreSQL 17 con pgvector, como motor único**. Este punto
+justifica esa elección contra las exigencias que impone el caso, y desarrolla las alternativas que
+se evaluaron y se descartaron.
+
+### 7.1 Qué exige el caso
+
+Los criterios no salen de una lista genérica: salen del relevamiento del punto 2 y de la
+clasificación del punto 3.
+
+| Criterio | Qué exige en este caso |
+|---|---|
+| **Variabilidad de los datos** | Cuatro clases conviviendo sobre las mismas entidades: estructurados, semiestructurados, no estructurados y vectoriales (punto 3.1) |
+| **Patrones de consulta** | Recuperación híbrida —semántica y por término exacto— en el camino crítico, más recorridos recursivos y agregaciones analíticas fuera de él (punto 2.2) |
+| **Control de acceso** | Es el requisito dominante. Tiene que ser inevadible, no una convención que la aplicación respeta (D1, R1) |
+| **Volumen y crecimiento** | Dos regímenes opuestos: un catálogo estable de millones de fragmentos y unas tablas de eventos que crecen indefinidamente con el uso (punto 2.4) |
+| **Consistencia** | Un otorgamiento de acceso y la traza de una respuesta no pueden ser eventualmente consistentes |
+| **Trazabilidad** | Estructuras de solo inserción, no modificables ni siquiera por quien las escribe |
+
+### 7.2 Qué mecanismo resuelve cada exigencia
+
+| Exigencia | Mecanismo | Por qué ese |
+|---|---|---|
+| Entidades y relaciones con integridad | Modelo relacional normalizado | Claves foráneas y restricciones declaradas: la integridad la garantiza el motor |
+| Metadatos variables por tipo | `JSONB` con índice `GIN` | Evita la tabla de atributos genéricos sin renunciar a transacciones ni a integridad (D6, punto 6.3) |
+| Búsqueda semántica | `pgvector` con índice HNSW y distancia coseno | Búsqueda aproximada de vecinos más cercanos sin recorrer todos los vectores |
+| Términos exactos | `tsvector` en español con `unaccent` | Un número de comunicación o una sigla no se distinguen por similitud semántica |
+| Fusión de ambas búsquedas | *Reciprocal Rank Fusion* en SQL | Combina dos rankings sin tener que normalizar puntajes de escalas distintas |
+| Tolerancia a errores de tipeo | `pg_trgm` sobre títulos | Búsqueda por título en la interfaz del curador |
+| Control de acceso | *Row-Level Security* | El filtro lo aplica el motor, no la consulta |
+| Trazabilidad | Tablas de solo inserción con permisos que impiden `UPDATE` y `DELETE` | La garantía es del motor, no de la disciplina de la aplicación |
+| Volumen de eventos | Particionado declarativo por rango de fecha | Poda por fecha y mantenimiento por partición |
+| Cadenas de derogación | `WITH RECURSIVE` | El grafo entre documentos es real pero chico y poco profundo |
+
+### 7.3 Por qué un solo motor y no un stack
+
+El caso combina tres exigencias que habitualmente empujan a repartir el trabajo entre varias
+tecnologías: datos relacionales, metadatos variables y búsqueda vectorial. La decisión de
+resolverlo con un motor único no es de comodidad, y descansa en tres argumentos.
+
+**El control de acceso solo se puede garantizar si vive en un único lugar.** Si los vectores
+estuvieran en un motor dedicado y los permisos en PostgreSQL, el filtro tendría que aplicarlo la
+aplicación: habría que replicar la lógica de acceso en código, mantenerla sincronizada entre dos
+sistemas, y confiar en que ninguna consulta se la olvide. Cualquier omisión es una fuga (R1). Con
+las políticas dentro del motor, el recuperador puede ser ciego al permiso porque el motor no lo
+es.
+
+**El volumen del caso entra holgado.** Con el orden de magnitud estimado en 2.4 —decenas de miles
+de documentos y algunos millones de fragmentos— pgvector con índice HNSW resuelve la recuperación
+sin necesitar un motor especializado. La complejidad de un segundo almacén se pagaría sin
+contrapartida.
+
+**Un stack agrega un modo de falla que el caso no tolera.** Dos motores son dos esquemas de
+permisos, dos respaldos, dos ventanas de mantenimiento, y un estado nuevo: el de
+desincronización entre ambos. En un caso cuyo requisito dominante es la seguridad, incorporar un
+modo de falla distribuido es exactamente el intercambio que no conviene hacer.
+
+### 7.4 Alternativas evaluadas y descartadas
+
+| Alternativa | Qué resolvería | Por qué no | Cuándo sí |
+|---|---|---|---|
+| **Motor vectorial dedicado** (Qdrant, Milvus, Pinecone) | Búsqueda por similitud a gran escala, con filtrado por metadatos | Sacar los vectores de PostgreSQL rompe el modelo de seguridad: el filtro de permisos pasaría a la aplicación | Arriba de decenas de millones de vectores con alta concurrencia, o si hiciera falta escalar la búsqueda independientemente del resto |
+| **Motor de búsqueda** (Elasticsearch, OpenSearch) | Búsqueda híbrida —léxica y vectorial— en un solo producto, que es su terreno natural | El catálogo necesita integridad referencial y transacciones para el versionado y los otorgamientos, y el control de acceso volvería a quedar del lado de la aplicación | Si el trabajo fuera principalmente de búsqueda sobre un corpus sin relaciones fuertes ni permisos por fila |
+| **Base documental** (MongoDB) | La variabilidad de metadatos entre tipos de documento | `JSONB` cubre esa variabilidad sin renunciar a integridad referencial, transacciones ni seguridad por fila | Si los documentos no tuvieran relaciones fuertes entre sí y el esquema variara de forma impredecible |
+| **Base de grafos** (Neo4j) | El recorrido de las relaciones entre documentos | El grafo es real —deroga, reemplaza, complementa, referencia— pero chico y de poca profundidad: `WITH RECURSIVE` alcanza | Si recorrer relaciones fuera el caso de uso central y no una consulta más entre otras |
+| **Clave-valor** (Redis) | Caché de resultados de recuperación | En este alcance no hay una necesidad de caché o de sesión que justifique otro componente | Al escalar, para cachear la recuperación de las preguntas más frecuentes |
+| **Archivos originales en la base** | Conservar el binario junto a sus metadatos | Ocupan mucho y no se consultan por su contenido binario (D5) | Nunca en este caso: van a almacenamiento de objetos, y en la base quedan URI, hash y texto extraído |
+
+El patrón que atraviesa la tabla es el mismo en casi todas las filas: cada alternativa resuelve
+bien **una** de las exigencias de 7.1, y ninguna resuelve la del control de acceso sin devolverle
+el filtro a la aplicación.
+
+### 7.5 Los tres mecanismos que sostienen el diseño
+
+**Seguridad a nivel de fila.** PostgreSQL permite declarar políticas que se aplican
+automáticamente a toda consulta sobre una tabla. La aplicación abre la conexión declarando quién
+consulta, y a partir de ahí una lectura sobre `chunk` devuelve únicamente los fragmentos que ese
+usuario puede ver. El filtro no se puede omitir porque no lo escribe quien consulta. Para este
+caso es determinante: es lo que permite que la búsqueda por similitud siga siendo ciega al permiso
+sin que eso constituya un riesgo.
+
+**Búsqueda híbrida con fusión de rankings.** La búsqueda vectorial entiende el significado pero
+falla con los términos exactos: preguntando por una comunicación identificada por su número, el
+vector no la distingue de otras comunicaciones parecidas. La búsqueda de texto completo hace
+exactamente lo contrario. *Reciprocal Rank Fusion* combina los dos rankings sumando el inverso de
+la posición de cada documento en cada uno, lo que evita tener que normalizar puntajes que están en
+escalas incomparables. Se escribe en SQL, sin componentes adicionales.
+
+**Documentos estructurados dentro de la fila.** `JSONB` con índice `GIN` resuelve los metadatos
+que varían entre tipos de documento manteniendo el resto del modelo relacional intacto. Es la
+pieza que evita tener que sumar una base documental al stack, y su justificación como decisión de
+modelado está en el punto 6.3.
+
+### 7.6 Límites de la elección
+
+Una justificación honesta incluye dónde deja de valer. Esta elección se revisaría en tres
+escenarios:
+
+- **Crecimiento del corpus por encima de decenas de millones de fragmentos**, con alta
+  concurrencia de búsqueda. El índice HNSW empezaría a competir por memoria con la carga
+  transaccional, y ahí sí se justificaría separar la recuperación en un motor dedicado, asumiendo
+  el costo de replicar el filtro de permisos.
+- **Aislamiento entre organizaciones distintas.** La seguridad por fila resuelve el aislamiento
+  entre usuarios de una misma organización. Si la solución pasara a servir a varias entidades,
+  convendría evaluar esquemas o bases separadas.
+- **Corpus multiidioma.** La configuración de búsqueda de texto completo está construida sobre el
+  lematizador en español: documentación en otros idiomas exigiría configuraciones adicionales y
+  decidir el idioma por documento.
 
 ## 8. Implementación mínima
 
