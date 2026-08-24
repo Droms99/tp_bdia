@@ -11,9 +11,9 @@ Integrantes: Martin Birman · Gonzalo Castro · Hernando Schidl
 
 1. [Descripción del caso de uso](#1-descripción-del-caso-de-uso)
 2. [Relevamiento de datos necesarios](#2-relevamiento-de-datos-necesarios)
-3. Clasificación de los datos
+3. [Clasificación de los datos](#3-clasificación-de-los-datos)
 4. [Modelo conceptual](#4-modelo-conceptual)
-5. Modelo de implementación
+5. [Modelo de implementación](#5-modelo-de-implementación)
 6. Normalización y desnormalización
 7. Justificación de la tecnología
 8. Implementación mínima
@@ -499,7 +499,98 @@ cubren.
 
 ## 3. Clasificación de los datos
 
-*(Pendiente — Gonzalo.)*
+El punto 2 identificó qué datos hay. Este los clasifica en tres ejes, porque cada uno condiciona
+decisiones distintas: la **estructura** determina cómo se almacenan y se consultan, la **función**
+determina el régimen de escritura y de retención, y la **sensibilidad** determina quién los ve.
+
+### 3.1 Por estructura
+
+| Categoría | Qué incluye | Cómo se representa |
+|---|---|---|
+| **Estructurados** | Catálogos, identidades, roles y permisos, otorgamientos, cabecera de documentos y versiones, relaciones entre documentos, citas de fuentes | Columnas tipadas con restricciones declaradas |
+| **Semiestructurados** | Metadatos que varían según el tipo de documento, posición del fragmento en su documento, contexto de un acceso, valores anterior y posterior de un cambio auditado | `JSONB` |
+| **No estructurados** | Texto extraído de la versión, texto del fragmento, pregunta del usuario, respuesta generada, comentario del feedback | Columnas de texto |
+| **Vectoriales** | Representación semántica del fragmento y de la pregunta | `vector(1024)` |
+
+Dos aclaraciones sobre esta división.
+
+La representación para búsqueda de texto completo (`chunk.tsv`) no es un dato nuevo ni es
+vectorial en el sentido denso: es un índice invertido de lexemas derivado del mismo texto, y lo
+calcula la base como columna generada. Se la nombra acá porque es la contracara del embedding —
+una responde por significado y la otra por término exacto— pero no es información adicional.
+
+La frontera entre no estructurado y vectorial es de representación y no de contenido. El mismo
+fragmento existe a la vez como texto y como vector, y esa duplicación es deliberada: cada forma
+responde un tipo de pregunta que la otra no puede.
+
+### 3.2 Por función
+
+| Clase | Entidades | Régimen | Retención |
+|---|---|---|---|
+| **De referencia** | `area`, `rol`, `permiso`, `nivel_confidencialidad`, `tipo_documento`, `etiqueta`, `modelo_embedding` | Casi solo lectura | Permanente |
+| **Operacionales** | `usuario`, `acl_documento`, `documento`, `documento_version`, `documento_relacion`, `chunk` | Lectura intensiva, escritura controlada | Permanente; las versiones, por obligación regulatoria |
+| **De eventos** | `consulta`, `respuesta`, `respuesta_fuente`, `feedback` | Solo inserción, alto volumen | A definir por política (punto 14) |
+| **De auditoría** | `log_acceso`, `auditoria` | Solo inserción, no modificables | Definida por la política de auditoría |
+| **Derivados** | Vistas materializadas del esquema `analytics` | Recalculables | No tienen retención propia |
+
+La diferencia entre eventos y auditoría no es de volumen: es de garantía. Un registro de eventos
+puede borrarse cuando vence la política de retención; uno de auditoría no puede modificarse
+mientras exista (RD13). Esa distinción se implementa con permisos de la base, no con disciplina
+de la aplicación.
+
+### 3.3 Por sensibilidad
+
+Hay dos escalas superpuestas: la clasificación del dominio, que se aplica a la documentación, y
+la condición de dato personal, que se aplica a las personas.
+
+| Dato | Por qué es sensible | Consecuencia |
+|---|---|---|
+| `documento.nivel_id` | Clasificación declarada en una escala ordenada de cuatro niveles | Es uno de los dos extremos de la regla de acceso de 4.4 |
+| `chunk` (texto y vector) | Hereda la clasificación de su documento y es lo que entra al contexto del modelo | Es el dato que puede filtrar información (R1) |
+| `acl_documento` | No es sensible en sí, pero una fila mal puesta expone un documento entero | Criticidad máxima; sus cambios se auditan |
+| `usuario.nombre`, `correo`, `identidad_ext` | Datos personales de empleados | Baja lógica, nunca borrado físico |
+| `consulta.texto` | El usuario puede escribir el documento de un cliente o el nombre de un empleado | R7: una tabla de uso pasa a contener datos personales |
+| `feedback.comentario` | Texto libre, mismo problema que la consulta | Igual tratamiento que `consulta` |
+| `log_acceso`, `auditoria` | Revelan el comportamiento de personas identificadas | Acceso restringido al perfil de auditoría |
+
+El caso menos evidente es el embedding. No es texto, pero tampoco es un dato técnico neutro: se
+deriva del contenido y permite reconstruirlo parcialmente. Se lo trata con el mismo nivel de
+confidencialidad que el fragmento del que proviene, y no como un vector anónimo.
+
+### 3.4 Síntesis por entidad
+
+| Entidad | Estructura | Función | Sensibilidad |
+|---|---|---|---|
+| `area`, `rol`, `permiso`, `tipo_documento`, `etiqueta` | Estructurada | De referencia | Baja |
+| `nivel_confidencialidad` | Estructurada | De referencia | Alta: define la escala de acceso |
+| `usuario` | Estructurada | Operacional | Alta: datos personales |
+| `acl_documento` | Estructurada | Operacional | Máxima |
+| `documento` | Estructurada + semiestructurada (`metadatos`) | Operacional | Alta: lleva la clasificación |
+| `documento_version` | Estructurada + no estructurada (`texto`) | Operacional | Alta: hereda del documento |
+| `documento_relacion` | Estructurada | Operacional | Baja |
+| `chunk` | Estructurada + no estructurada + vectorial + semiestructurada | Operacional | Máxima |
+| `modelo_embedding` | Estructurada | De referencia | Baja |
+| `consulta` | Estructurada + no estructurada + vectorial | De eventos | Alta: posibles datos personales |
+| `respuesta` | Estructurada + no estructurada | De eventos | Media |
+| `respuesta_fuente` | Estructurada | De eventos | Máxima: es la traza de la respuesta |
+| `feedback` | Estructurada + no estructurada | De eventos | Media |
+| `log_acceso` | Estructurada + semiestructurada (`contexto`) | De auditoría | Alta |
+| `auditoria` | Estructurada + semiestructurada (`datos_antes`, `datos_despues`) | De auditoría | Máxima |
+
+### 3.5 Qué se desprende de la clasificación
+
+- Los **semiestructurados** van en `JSONB` con índice `GIN`, y no en una tabla de atributos
+  genéricos ni en columnas mayormente vacías (D6). Se desarrolla en los puntos 6 y 11.
+- De los **no estructurados**, el binario queda fuera de la base y el texto adentro (D5). El
+  texto tiene que estar porque se fragmenta y se busca; el binario no aporta a la recuperación.
+- Los **vectoriales** obligan a registrar con qué modelo y con qué dimensión se generaron (R5),
+  porque vectores de modelos distintos no son comparables y la degradación es silenciosa.
+- Los **datos personales** de `consulta` y `feedback` obligan a fijar una política de retención,
+  y es donde el punto 13 se cruza con el 14.
+- Los **de auditoría** se protegen con permisos de la base y no con convenciones de la
+  aplicación (RD13).
+- Los **derivados** no pueden contener texto de fragmentos (R8): la clasificación no viaja con
+  una copia, así que la capa analítica guarda identificadores y magnitudes agregadas.
 
 ## 4. Modelo conceptual
 
@@ -692,7 +783,115 @@ con el resto de los catálogos.
 
 ## 5. Modelo de implementación
 
-*(Pendiente — Gonzalo.)*
+El punto 4 describió qué información existe y cómo se relaciona. Este define cómo se representa
+en un motor relacional: tablas, claves, restricciones y la traducción de cada cardinalidad. Lo
+implementa [`db/estructura/03_tablas.sql`](../db/estructura/03_tablas.sql), que crea 22 tablas y
+dos tipos enumerados sobre el esquema `core`.
+
+### 5.1 Criterios de traducción
+
+**Clave sustituta en todas las entidades, clave natural declarada como única.** Las claves
+naturales del dominio —el código documental, el identificador corporativo, el nombre del área—
+son estables pero no inmutables, y varias se referencian desde tablas de alto volumen. Una clave
+sustituta angosta mantiene chicos los índices y las claves foráneas. La clave natural no se
+pierde: queda como restricción de unicidad, que es donde cumple su función.
+
+La excepción es `nivel_confidencialidad`, cuyo identificador se asigna a mano. Es un catálogo
+cerrado de cuatro filas cuyo orden participa de la regla de acceso, y conviene que sus
+identificadores sean estables y legibles en las políticas.
+
+**Los catálogos son tablas, no tipos enumerados.** Un enumerado no admite atributos, y los
+catálogos de este modelo los necesitan: el nivel lleva `orden`, el tipo de documento lleva
+descripción. Además, agregar un valor a un enumerado exige `ALTER TYPE`. Se usan enumerados solo
+donde el conjunto es cerrado y sin atributos propios: `estado_documento` y
+`tipo_relacion_documento`.
+
+**Toda tabla lleva `COMMENT ON`**, con lo que representa y con la decisión o el riesgo del punto
+1 al que responde.
+
+### 5.2 Traducción de las relaciones
+
+| Cardinalidad conceptual | Cómo se implementa | Ejemplo |
+|---|---|---|
+| 1 : N obligatoria | Clave foránea `NOT NULL` en el lado N | `documento.area_id` |
+| 1 : N opcional | Clave foránea que admite nulo | `log_acceso.documento_id` |
+| N : M sin atributos | Tabla puente con clave primaria compuesta | `usuario_rol`, `rol_permiso`, `documento_etiqueta` |
+| N : M con atributos | Entidad propia con sus columnas | `acl_documento`, `respuesta_fuente`, `documento_relacion` |
+| 1 : 1 (a lo sumo una) | Clave foránea más restricción de unicidad en el lado dependiente | `respuesta.consulta_id` |
+| Arco exclusivo | Tres claves foráneas opcionales más verificación de que hay exactamente una | `acl_documento` |
+| Autorrelación | Dos claves foráneas a la misma tabla más verificación anti-reflexiva | `documento_relacion` |
+
+### 5.3 Claves
+
+| Grupo | Clave primaria | Por qué |
+|---|---|---|
+| Entidades | Sustituta generada por identidad | Estabilidad y tamaño |
+| Tablas puente | Compuesta por las dos foráneas | La combinación es el hecho que se registra |
+| `documento_relacion` | Origen + destino + tipo | Dos documentos pueden vincularse por más de un motivo |
+| Tablas particionadas | Sustituta + `creado_en` | En una tabla particionada la clave primaria debe incluir la clave de partición |
+
+Las claves foráneas entre tablas particionadas arrastran la fecha (`respuesta` referencia a
+`consulta` por `(id, creado_en)`). Además de satisfacer la restricción anterior, eso garantiza
+que padre e hijo caigan en la misma partición.
+
+### 5.4 Las tres cuestiones que quedaron abiertas en 4.6
+
+**El sujeto del otorgamiento.** Se resuelve con tres referencias opcionales y la verificación
+`num_nonnulls(area_id, rol_id, usuario_id) = 1`, en lugar de tres tablas separadas. El criterio
+fue el costo de la consulta que más se ejecuta: las políticas de seguridad por fila consultan
+esta tabla en cada recuperación, y una sola tabla mantiene la política legible y el plan de
+ejecución simple. Tres tablas serían más estrictas pero triplicarían esa consulta.
+
+**Los metadatos variables.** Se resuelven con `jsonb NOT NULL DEFAULT '{}'` y la verificación de
+que el valor sea un objeto. El desarrollo de por qué no una tabla de atributos genéricos es el
+punto 6.
+
+**La escala de niveles.** Se representa como tabla catálogo con un atributo `orden` único, no
+como enumerado, porque el orden se compara dentro de la regla de acceso y porque incorporar un
+nivel intermedio no debería exigir modificar un tipo.
+
+### 5.5 Lo que falta cerrar
+
+Tres definiciones que este punto fija y que todavía no están en el DDL.
+
+**El nivel de habilitación del usuario.** El modelo conceptual tiene la relación
+`nivel_confidencialidad 1 — habilita hasta — N usuario` y la regla de acceso de 4.4 la necesita,
+pero `usuario` no la implementa. Se agrega como `nivel_habilitacion_id smallint NOT NULL
+REFERENCES nivel_confidencialidad(id)`. Se descartó derivarla del rol: la habilitación es una
+propiedad de la persona y no de la función que cumple, y dos usuarios con el mismo rol pueden
+tenerla distinta. Sin esta columna, la primera condición de la regla de acceso no tiene dónde
+apoyarse y las políticas quedarían con una sola de las dos.
+
+**Unicidad de la respuesta por consulta.** La cardinalidad 1 : 1 de 4.3 exige
+`UNIQUE (consulta_id, creado_en)` sobre `respuesta`, que hoy no está declarada.
+
+**Unicidad de la posición dentro de una respuesta.** RD10 exige
+`UNIQUE (respuesta_id, posicion, creado_en)` sobre `respuesta_fuente`.
+
+### 5.6 Estado de las restricciones del dominio
+
+Cómo queda implementada cada restricción del punto 4.5.
+
+| # | Cómo se implementa | Estado |
+|---|---|---|
+| RD1 | Derivación en consultas y políticas; el fragmento no guarda clasificación propia | Por construcción |
+| RD2 | Restricción de exclusión sobre el rango de vigencia | Falta `btree_gist` |
+| RD3 | Verificación sobre las fechas de la versión | Declarada |
+| RD4 | Disparador sobre el estado del documento | Pendiente |
+| RD5 | Verificación en el recorrido recursivo | Pendiente |
+| RD6 | Unicidad sobre `hash_sha256` | Declarada |
+| RD7 | Verificación de exactamente un sujeto | Declarada |
+| RD8 | Regla de aplicación, auditada | Pendiente (`05_rls.sql`) |
+| RD9 | Unicidad de `(version, orden)` más validación en la ingesta | Parcial: falta lo consecutivo |
+| RD10 | Unicidad de `(respuesta, posicion)` | Falta declararla |
+| RD11 | Por construcción: la única vía a `respuesta_fuente` es la recuperación, ya filtrada | Depende de `05_rls.sql` |
+| RD12 | Referencia a `modelo_embedding` y dimensión fijada en el tipo de la columna | Declarada |
+| RD13 | Permisos y políticas de la base | Pendiente (`05_rls.sql`) |
+| RD14 | Unicidad sobre `orden` | Declarada |
+| RD15 | Unicidad de `(respuesta, usuario)` | Declarada |
+
+Las restricciones que faltan son la lista de trabajo del punto 8. Ninguna cambia el modelo: todas
+se agregan sobre las tablas que ya existen.
 
 ## 6. Normalización y desnormalización
 
