@@ -20,7 +20,7 @@ Integrantes: Martin Birman · Gonzalo Castro · Hernando Schidl
 9. Datos de ejemplo
 10. Consultas representativas
 11. Datos semiestructurados, no estructurados y vectoriales
-12. Arquitectura de datos
+12. [Arquitectura de datos](#12-arquitectura-de-datos)
 13. Seguridad, permisos y aislamiento
 14. Escalabilidad y rendimiento
 15. Conclusiones
@@ -1122,7 +1122,98 @@ escenarios:
 
 ## 12. Arquitectura de datos
 
-*(Pendiente — Gonzalo y Martin.)*
+El diagrama de la circulación de los datos está en
+[`docs/diagramas/arquitectura.md`](diagramas/arquitectura.md). Este punto justifica las capas, los
+límites entre componentes y dónde se aplica cada garantía.
+
+### 12.1 Las tres capas
+
+La arquitectura se resuelve con tres esquemas dentro de un mismo motor, y no con tres bases
+separadas.
+
+| Capa | Qué contiene | Quién escribe | Quién lee |
+|---|---|---|---|
+| `raw` | Documentos tal como se reciben, antes de clasificar y fragmentar | El proceso de ingesta | El curador |
+| `core` | Catálogo documental, versiones, fragmentos, permisos y registro de uso | La ingesta y la aplicación | La aplicación, con las políticas de acceso aplicadas |
+| `analytics` | Agregaciones precalculadas sobre el uso del sistema | El refresco de las vistas | Perfiles de análisis y auditoría |
+
+La separación no es organizativa: es un límite de permisos y de ciclo de vida. `raw` recibe
+material sin clasificar, y por lo tanto sin control de acceso aplicable todavía, así que no lo
+alcanza nadie fuera del curador. `analytics` es lo contrario: lo lee más gente, y justamente por
+eso no puede contener texto de fragmentos (R8).
+
+**Por qué tres esquemas y no tres bases.** Una consulta analítica necesita unir contra el catálogo
+—qué área, qué tipo, qué antigüedad tiene lo que se cita— y eso tiene que resolverse sin salir del
+motor. Separar en bases distintas reintroduciría el problema de consistencia entre almacenes que
+el punto 7.3 descarta, y duplicaría la administración de permisos, que es donde se cometen los
+errores que producen fugas.
+
+La implementación mínima no puebla `raw`: el corpus de ejemplo llega ya curado, así que la
+preparación escribe directamente sobre `core`. La capa se declara igual porque el diseño de una
+ingesta productiva la necesita, y porque el esquema vacío deja explícito dónde iría.
+
+### 12.2 La circulación
+
+| Etapa | Qué ocurre | Dónde queda |
+|---|---|---|
+| **Origen** | El curador toma un documento de los repositorios existentes | — |
+| **Aterrizaje** | Se calcula el hash del binario y se lo deposita en el almacenamiento de objetos | Almacenamiento de objetos; en la base, URI y hash |
+| **Normalización** | Se extrae el texto plano y se registra la versión | `core.documento_version` |
+| **Clasificación** | Se asignan tipo, área, nivel, etiquetas, metadatos y otorgamientos de acceso | `core.documento`, `core.acl_documento` |
+| **Enriquecimiento** | Se fragmenta el texto y se vectoriza cada fragmento | `core.chunk` |
+| **Servicio** | La recuperación devuelve fragmentos ya filtrados; la aplicación se los entrega al modelo | — |
+| **Registro** | Se guardan la pregunta, la respuesta, las fuentes citadas y los accesos | `core`, en las tablas particionadas |
+| **Análisis** | Se recalculan los indicadores de uso y cobertura | `analytics` |
+
+Las cuatro primeras etapas corresponden a los procesos P1 a P4 del punto 1.5; las tres últimas, a
+P5, P7 y P8.
+
+### 12.3 Qué está dentro de la base y qué está fuera
+
+| Componente | Dónde vive | Por qué |
+|---|---|---|
+| Archivo binario original | Almacenamiento de objetos | Ocupa mucho y no se consulta por su contenido binario (D5) |
+| Texto extraído, hash y URI | En la base | El texto se fragmenta y se busca; el hash y la URI lo hacen recuperable y verificable |
+| Fragmentación y vectorización | Proceso externo | La base recibe los fragmentos armados; no calcula embeddings |
+| Representación de texto completo | En la base | Es una columna generada: la calcula y la mantiene el motor, así que no puede desincronizarse |
+| Vectorización de la pregunta | Aplicación | Tiene que usar el mismo modelo y la misma dimensión que la ingesta (R5) |
+| Modelo de lenguaje | Fuera del alcance | Caja negra: recibe fragmentos y devuelve texto (1.3) |
+| Identidades y credenciales | Sistema de identidad corporativo | La solución consume identidades, no las administra (2.3) |
+| **Filtro de permisos** | **Dentro de la base** | **Es la única pieza que no puede mudarse a otro componente sin perder la garantía** |
+
+La última fila es la que ordena toda la arquitectura. Cualquier otro componente podría cambiar de
+lugar sin romper el diseño: el almacenamiento de objetos puede ser otro, el proceso de
+fragmentación puede reescribirse, el modelo de lenguaje puede reemplazarse. El filtro no, porque
+en el momento en que lo aplica algo que no es el motor, deja de ser una garantía y pasa a ser una
+convención que hay que recordar respetar en cada consulta nueva.
+
+### 12.4 Dónde se aplica cada garantía
+
+| Garantía | Quién la hace cumplir |
+|---|---|
+| Un usuario no recupera lo que no está autorizado a ver | Políticas de seguridad por fila, en el motor |
+| Un archivo no se procesa ni se vectoriza dos veces | Restricción de unicidad sobre el hash |
+| Una respuesta es reconstruible meses después | `respuesta_fuente`, con puntaje y posición |
+| Los registros de auditoría no se pueden alterar | Permisos del motor sobre las tablas de solo inserción |
+| La capa analítica no filtra texto protegido | Restricción sobre qué puede contener `analytics` |
+| Dos vectores de la base son comparables entre sí | Referencia a `modelo_embedding` y dimensión fijada en el tipo |
+
+Ninguna de estas garantías vive en el código de la aplicación. Esa es la definición de
+arquitectura que sigue este trabajo: no el dibujo de las cajas, sino la decisión de qué componente
+es responsable de que cada cosa no pueda salir mal.
+
+### 12.5 Lo que no se implementa, y por qué
+
+| Pieza | Cuándo correspondería | Por qué no acá |
+|---|---|---|
+| **Réplica de solo lectura** | Cuando las consultas analíticas empiecen a competir con la recuperación por recursos | El volumen del caso no lo exige, y el trabajo evalúa el diseño de datos y no el despliegue |
+| **Orquestación de la ingesta** | Cuando la carga sea continua y haya que reintentar y monitorear | La ingesta acá es un proceso manual del curador sobre un corpus acotado |
+| **Almacenamiento de objetos real** | En cualquier despliegue productivo | Se modela como URI y hash: lo que el diseño de datos tiene que resolver es cómo referenciarlo, no cómo montarlo |
+| **Alta disponibilidad y recuperación ante desastres** | En producción, por obligación regulatoria | Declarado fuera del alcance en 1.3 |
+
+En los cuatro casos la decisión es la misma: la arquitectura los contempla y los justifica, pero
+implementarlos no agregaría nada a la validación del diseño de datos, que es lo que este trabajo
+tiene que demostrar.
 
 ## 13. Seguridad, permisos y aislamiento
 
