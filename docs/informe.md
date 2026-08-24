@@ -14,7 +14,7 @@ Integrantes: Martin Birman · Gonzalo Castro · Hernando Schidl
 3. [Clasificación de los datos](#3-clasificación-de-los-datos)
 4. [Modelo conceptual](#4-modelo-conceptual)
 5. [Modelo de implementación](#5-modelo-de-implementación)
-6. Normalización y desnormalización
+6. [Normalización, desnormalización y embebido](#6-normalización-desnormalización-y-embebido)
 7. Justificación de la tecnología
 8. Implementación mínima
 9. Datos de ejemplo
@@ -893,9 +893,106 @@ Cómo queda implementada cada restricción del punto 4.5.
 Las restricciones que faltan son la lista de trabajo del punto 8. Ninguna cambia el modelo: todas
 se agregan sobre las tablas que ya existen.
 
-## 6. Normalización y desnormalización
+## 6. Normalización, desnormalización y embebido
 
-*(Pendiente — Gonzalo.)*
+El modelo relacional del punto 5 está en tercera forma normal, con tres desviaciones deliberadas.
+Este punto justifica hasta dónde se normalizó, qué anomalías evita esa decisión, y con qué
+criterio se resolvió cada vez que un dato podía ir embebido en una fila o referenciado desde otra
+tabla.
+
+### 6.1 Hasta qué forma normal
+
+**Primera forma normal.** Todos los atributos son atómicos, con una excepción aparente: las
+columnas `JSONB`. Un documento estructurado dentro de una fila parece una violación, porque sus
+campos internos son varios valores en una sola columna. No lo es en este modelo, y la razón es
+precisa: esos campos **no forman parte del universo del discurso**. Varían de un tipo de documento
+a otro, ninguna restricción del dominio depende de ellos, y ninguna relación los referencia. Para
+el esquema relacional, `metadatos` es un valor atómico; su estructura interna la interpreta quien
+consulta, no el modelo.
+
+**Segunda forma normal.** Ningún atributo depende de parte de una clave compuesta. Las claves
+compuestas del modelo son de dos clases: las de las tablas puente, que no tienen atributos fuera
+de la marca temporal del vínculo, y las de las tablas particionadas, que se tratan en 6.4.
+
+**Tercera forma normal.** No hay dependencias transitivas entre atributos que no son clave. El
+caso que las evita explícitamente es el nivel de confidencialidad: no se guarda en el fragmento
+ni en la versión, sino solo en el documento, y desde ahí se deriva.
+
+En la práctica el modelo cumple también Boyce-Codd, porque en toda tabla el único determinante es
+una clave candidata. Donde hay dos claves candidatas —`nivel_confidencialidad` tiene `nombre` y
+`orden`, ambos únicos— ninguna determina a la otra fuera de la fila que las contiene.
+
+### 6.2 Qué anomalías evita
+
+| Anomalía | Cómo aparecería acá | Qué la evita |
+|---|---|---|
+| **Actualización** | Si el fragmento guardara copia del nivel de confidencialidad de su documento, reclasificar un documento obligaría a actualizar millones de fragmentos | RD1: el fragmento hereda, no copia |
+| **Inserción** | Si el otorgamiento fuera un atributo de `documento` —una lista de áreas habilitadas— no habría dónde registrar quién lo concedió ni hasta cuándo | `acl_documento` como entidad |
+| **Borrado** | Si el nombre y la dimensión del modelo de vectorización fueran columnas de `chunk`, dar de baja el último fragmento de un modelo borraría el registro de que ese modelo existió | `modelo_embedding` como entidad |
+
+La primera merece subrayarse porque su consecuencia no es la habitual. En un modelo cualquiera,
+una anomalía de actualización produce datos inconsistentes. Acá produce una **fuga**: un fragmento
+que quedó con la clasificación vieja después de que su documento se reclasificara hacia arriba es
+un fragmento que la recuperación va a entregar a quien no corresponde. Es el argumento que hace
+que la normalización de este modelo no sea una cuestión de prolijidad.
+
+### 6.3 Embebido contra referencias
+
+El criterio es uno solo: **se embebe lo que no tiene identidad propia, no se comparte, y no
+participa de ninguna restricción de integridad. Se referencia todo lo demás.**
+
+| Dato | Decisión | Por qué |
+|---|---|---|
+| `documento.metadatos` | Embebido | Varía según el tipo, no se comparte entre documentos, y ninguna restricción depende de sus campos |
+| `chunk.metadatos` | Embebido | Describe la posición del fragmento en su documento; nace y muere con él |
+| `auditoria.datos_antes`, `datos_despues` | Embebido | La forma cambia según la entidad auditada: no existe un esquema fijo posible |
+| `log_acceso.contexto` | Embebido | Igual que el anterior, y solo se lee al investigar un caso puntual |
+| `chunk.embedding` | Embebido en la fila | Hay exactamente un vector por fragmento y siempre se recupera junto con su texto; una tabla aparte agregaría una unión en la consulta más caliente del sistema sin ganar nada |
+| `tipo_documento`, `nivel_confidencialidad` | Referencia | Tienen identidad, se comparten, y participan de restricciones: el `orden` del nivel se compara dentro de la regla de acceso |
+| `etiqueta` | Referencia (N:M) | El vocabulario tiene que ser común. Embebida como arreglo en `documento` convivirían «kyc», «KYC» y «Kyc» como etiquetas distintas |
+| `acl_documento` | Referencia | Tiene atributos propios —vigencia, otorgante, motivo— y es la tabla que consultan las políticas de acceso |
+
+Hay una sola excepción al criterio, y es deliberada. `auditoria` identifica lo que audita con un
+nombre de entidad y un identificador, **sin clave foránea**. Es una referencia lógica sin
+integridad referencial, y se acepta porque el registro tiene que sobrevivir a la baja de aquello
+que audita: con una clave foránea, borrar un otorgamiento borraría también la constancia de que
+existió.
+
+### 6.4 Las desnormalizaciones adoptadas
+
+| Qué | Por qué | Qué se paga |
+|---|---|---|
+| Metadatos variables en `JSONB` | La alternativa normalizada es una tabla de atributos genéricos, que pierde la verificación de tipos, degrada los planes de ejecución y obliga a reconstruir cada documento con tantas uniones como atributos tenga | No hay verificación declarada campo por campo |
+| La clave de partición dentro de la clave primaria | El particionado declarativo lo exige. En `respuesta_fuente`, `creado_en` está funcionalmente determinado por `respuesta_id`, así que como parte de la clave es redundante | Una columna repetida por fila en las tablas de mayor volumen |
+| `feedback.respuesta_creado_en` | Copia explícita de la marca temporal de la respuesta, única forma de referenciar una tabla particionada | Igual que el anterior |
+| `chunk.tsv` | Representación derivada del texto, es decir redundancia pura. Calcularla en cada consulta sería inviable | Espacio, y nada más: es una columna generada y la mantiene la base |
+| Vistas materializadas de `analytics` | Agregaciones precalculadas sobre datos que ya existen | Desfase entre el refresco y el dato vivo, aceptable para indicadores |
+
+Las dos primeras y la tercera tienen la misma justificación de fondo: **la redundancia la impone o
+la mantiene el motor, no la aplicación.** Una clave de partición la exige PostgreSQL; una columna
+generada la recalcula PostgreSQL; una vista materializada se refresca con un comando. En ninguna
+de las tres hay código de aplicación que pueda olvidarse de sincronizar algo.
+
+### 6.5 La desnormalización que no se hace
+
+La más tentadora del modelo sería copiar `nivel_id` y el estado del documento a `chunk`. Ahorraría
+dos uniones en la consulta que más se ejecuta —la recuperación— y en una base de millones de
+fragmentos eso se nota.
+
+No se hace, y el motivo es el mismo de 6.2: una divergencia entre la clasificación del documento y
+la copia guardada en el fragmento no es una inconsistencia que se corrige después, es un fragmento
+prohibido que la recuperación entrega. Si el rendimiento llegara a exigirlo, se resuelve con un
+índice adecuado o con una vista, no duplicando el dato que decide quién ve qué.
+
+Por la misma razón se descarta copiar el título del documento a `respuesta_fuente` para mostrar la
+cita sin uniones.
+
+### 6.6 Síntesis
+
+Tercera forma normal como norma, y tres excepciones que comparten una forma: se acepta redundancia
+cuando el motor la impone o la mantiene solo. No se acepta ninguna redundancia que dependa de que
+la aplicación la mantenga sincronizada, porque en este modelo una divergencia entre dos copias del
+mismo dato de clasificación no produce un informe mal sumado: produce una filtración.
 
 ## 7. Justificación de la tecnología
 
