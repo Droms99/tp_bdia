@@ -1,0 +1,61 @@
+{
+  "codigo": "DOC-CMP-006",
+  "titulo": "Preguntas frecuentes sobre debida diligencia",
+  "tipo": "faq",
+  "area": "Compliance",
+  "confidencialidad": "interno",
+  "version": "1.0",
+  "vigente_desde": "2025-10-01",
+  "vigente_hasta": null,
+  "estado": "vigente",
+  "etiquetas": [
+    "kyc",
+    "debida_diligencia",
+    "compliance",
+    "preguntas_frecuentes"
+  ],
+  "exportado_de": "base de conocimiento corporativa",
+  "introduccion": "Respuestas de uso interno para el personal comercial y de atención. No están redactadas para transmitirse al cliente tal cual: son de uso interno.",
+  "entradas": [
+    {
+      "orden": 1,
+      "pregunta": "¿Puede abrirse una cuenta si falta la constancia de domicilio?",
+      "respuesta": "No. La documentación de alta es bloqueante: si falta alguno de los elementos que enumera el procedimiento de conocimiento del cliente, la cuenta no se habilita para operar."
+    },
+    {
+      "orden": 2,
+      "pregunta": "¿Qué es el beneficiario final y por qué se pide?",
+      "respuesta": "Es la persona humana que en última instancia controla a una persona jurídica o se beneficia de sus operaciones. Se pide porque la normativa lo exige y porque sin ese dato no puede evaluarse el riesgo real del cliente: una sociedad puede tener autoridades formales que no son quienes deciden."
+    },
+    {
+      "orden": 3,
+      "pregunta": "Un cliente antiguo no tiene declarado el beneficiario final. ¿Puede seguir operando?",
+      "respuesta": "Sí, mientras se completa la regularización, salvo que el cliente sea de riesgo alto. El área de Compliance lleva el seguimiento de los legajos incompletos y define el plazo de regularización caso por caso."
+    },
+    {
+      "orden": 4,
+      "pregunta": "¿Cada cuánto hay que revisar el legajo de un cliente?",
+      "respuesta": "Depende del nivel de riesgo asignado: cada cinco años para riesgo bajo, cada dos para riesgo medio y anualmente para riesgo alto. Un cambio de nivel de riesgo dispara la revisión de inmediato."
+    },
+    {
+      "orden": 5,
+      "pregunta": "El cliente dice que no es persona expuesta políticamente pero el sistema lo marca. ¿Qué hago?",
+      "respuesta": "Prevalece la marca del sistema hasta que Compliance la analice. No se resuelve en el punto de atención ni se le pide al cliente que insista con la declaración negativa. Se deriva el caso."
+    },
+    {
+      "orden": 6,
+      "pregunta": "¿Se le puede contar al cliente que su operación generó una alerta?",
+      "respuesta": "No, bajo ninguna circunstancia. Las alertas y su tratamiento están alcanzados por el deber de reserva. Informarlo constituye falta grave."
+    },
+    {
+      "orden": 7,
+      "pregunta": "¿Dónde está el detalle del circuito de reporte?",
+      "respuesta": "En un instructivo de acceso restringido al área de Compliance. El personal comercial no accede a ese documento y no necesita conocer el circuito: su obligación es reportar internamente lo que detecte."
+    },
+    {
+      "orden": 8,
+      "pregunta": "Un cliente se niega a declarar el origen de los fondos. ¿Qué corresponde?",
+      "respuesta": "No se cursa la operación y se eleva la situación a Compliance. La negativa a informar el origen de los fondos es, en sí misma, un elemento a considerar en el análisis."
+    }
+  ]
+}

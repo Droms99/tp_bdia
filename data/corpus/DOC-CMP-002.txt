@@ -1,0 +1,76 @@
+==============================================================================
+BANCO EJEMPLO S.A. - GESTOR DOCUMENTAL - EXPORTACION TEXTO PLANO
+==============================================================================
+CODIGO:             DOC-CMP-002
+TITULO:             Politica de prevencion de lavado de activos (edicion 2019)
+TIPO:               documento_historico
+AREA:               Compliance
+CONFIDENCIALIDAD:   interno
+VERSION:            3.2
+VIGENTE DESDE:      2019-05-01
+VIGENTE HASTA:      2024-02-29
+ESTADO:             derogado
+ETIQUETAS:          prevencion_lavado, politica, compliance, historico
+RELACIONES:         NINGUNA
+==============================================================================
+
+POLITICA DE PREVENCION DE LAVADO DE ACTIVOS (EDICION 2019)
+==========================================================
+
+  DOCUMENTO DEROGADO. Esta politica rigio hasta el 29/02/2024 y fue
+  reemplazada integramente por DOC-CMP-001. Se conserva por obligacion
+  regulatoria de trazabilidad. No debe utilizarse como referencia vigente ni
+  citarse en respuestas a consultas operativas.
+
+1. OBJETIVO
+-----------
+
+Establecer las pautas de prevencion del lavado de activos aplicables a las
+operaciones del banco, en cumplimiento de la normativa vigente al momento de
+su emision.
+
+2. ALCANCE
+----------
+
+Alcanza a las areas comerciales y operativas del banco. Las operaciones
+cursadas por canales digitales se rigen supletoriamente por esta politica, en
+tanto no exista una regulacion especifica para ellas.
+
+3. IDENTIFICACION DE CLIENTES
+-----------------------------
+
+Al momento de la apertura de una cuenta se requiere documento de identidad,
+constancia de domicilio y declaracion jurada de licitud y origen de los
+fondos. Para personas juridicas se requiere ademas el estatuto social y la
+nomina de autoridades vigente.
+
+4. UMBRALES
+-----------
+
+Las operaciones en efectivo por encima del umbral fijado por la normativa
+requieren declaracion jurada especifica sobre el origen de los fondos. Las
+operaciones por debajo del umbral no requieren declaracion adicional salvo que
+el operador advierta una situacion inusual.
+
+5. PERFIL DEL CLIENTE
+---------------------
+
+Se construye un perfil transaccional al inicio de la relacion y se revisa cada
+tres anos, o antes si el cliente lo solicita por un cambio en su actividad.
+
+6. REPORTE
+----------
+
+Las operaciones inusuales se elevan al Oficial de Cumplimiento, que decide si
+corresponde reportarlas. El plazo de analisis interno es de treinta dias
+corridos desde la deteccion.
+
+7. MOTIVO DE LA DEROGACION
+--------------------------
+
+Esta edicion fue derogada porque su enfoque por umbrales resulto insuficiente
+frente al enfoque basado en riesgo que exige la normativa posterior, porque no
+contemplaba la identificacion del beneficiario final como requisito
+bloqueante, y porque la revision de legajos cada tres anos con independencia
+del riesgo del cliente dejo de ser aceptable.
+
