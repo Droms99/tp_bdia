@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOC-RIE-003 — Manual del sistema de scoring crediticio</title>
+<meta name="codigo" content="DOC-RIE-003">
+<meta name="tipo" content="manual_sistema">
+<meta name="area" content="Riesgos">
+<meta name="confidencialidad" content="confidencial">
+<meta name="version" content="3.0">
+<meta name="vigente-desde" content="2025-09-01">
+<meta name="vigente-hasta" content="">
+<meta name="estado" content="vigente">
+<meta name="keywords" content="riesgo_crediticio, scoring, manual, modelos">
+<meta name="generator" content="Gestor Documental Corporativo 4.2">
+</head>
+<body>
+<div class="documento">
+<p class="rotulo">DOC-RIE-003 · versión 3.0 · confidencial · vigente</p>
+<h1>Manual del sistema de scoring crediticio</h1>
+<h2>1. Qué es este documento</h2>
+<p>Describe la operación del motor de scoring crediticio: qué variables consume, cómo se interpreta su salida, cómo se recalibra y qué controles tiene. No es un documento de originación: el procedimiento que consume este motor es DOC-RIE-002.</p>
+<h2>2. Variables del modelo</h2>
+<p>El modelo vigente consume tres familias de variables:</p>
+<ul>
+<li><strong>Comportamiento crediticio interno</strong>: antigüedad como cliente, historial de pagos de productos vigentes, uso del límite de tarjeta, mora máxima registrada en los últimos 24 meses.</li>
+<li><strong>Comportamiento externo</strong>: situación informada en la Central de Deudores, cantidad de entidades con las que opera, deuda total informada.</li>
+<li><strong>Capacidad de pago</strong>: relación cuota/ingreso, estabilidad laboral declarada y verificada.</li>
+</ul>
+<p>El modelo no consume variables de género, estado civil, nacionalidad, domicilio a nivel de barrio ni ninguna otra variable que pueda actuar como aproximación de un atributo protegido. Esta restricción es un requisito de diseño, no una configuración: la lista de variables admitidas está fijada en la definición del modelo y su modificación requiere aprobación del Comité de Riesgos.</p>
+<h2>3. Salida</h2>
+<p>El motor devuelve un puntaje entero entre 0 y 1000 y un tramo de riesgo (bajo, medio, alto) resultante de aplicar los cortes vigentes al puntaje. Los cortes son parámetros del sistema, no del modelo: se pueden mover sin recalibrar, y su movimiento queda registrado en la bitácora de cambios del sistema.</p>
+<h2>4. Recalibración</h2>
+<p>El modelo se recalibra cuando su poder discriminante, medido sobre la cartera de los últimos doce meses, cae por debajo del umbral definido en el plan de seguimiento de modelos. La recalibración produce una versión nueva del modelo; la versión anterior se conserva para poder reconstruir con qué modelo se decidió cada operación histórica.</p>
+<h2>5. Controles</h2>
+<p>Toda ejecución del motor deja registro del identificador de la solicitud, la versión del modelo utilizada, el puntaje devuelto y los valores de entrada. Sin ese registro no sería posible explicar una decisión de crédito ante una revisión de auditoría o un reclamo del cliente, que es un requisito de la normativa de protección de usuarios de servicios financieros.</p>
+<h2>6. Ambiente</h2>
+<p>El motor corre en el ambiente de riesgos, separado del núcleo bancario, y consume los datos por un proceso de extracción diario. Un desfasaje de más de 48 horas en esa extracción inhabilita el uso del motor: el sistema devuelve error en lugar de un puntaje calculado con datos viejos.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "codigo": "DOC-RIE-006",
+  "titulo": "Preguntas frecuentes sobre mora y refinanciación",
+  "tipo": "faq",
+  "area": "Riesgos",
+  "confidencialidad": "publico",
+  "version": "1.2",
+  "vigente_desde": "2025-07-01",
+  "vigente_hasta": null,
+  "estado": "vigente",
+  "etiquetas": [
+    "mora",
+    "refinanciacion",
+    "atencion_al_cliente",
+    "preguntas_frecuentes"
+  ],
+  "exportado_de": "base de conocimiento corporativa",
+  "introduccion": "Material de consulta para el personal de atención. Las respuestas están redactadas para poder transmitirse al cliente tal como están escritas.",
+  "entradas": [
+    {
+      "orden": 1,
+      "pregunta": "¿A partir de cuándo se considera que una cuota está en mora?",
+      "respuesta": "Desde el día siguiente al vencimiento impago. El sistema aplica intereses punitorios sobre el capital vencido a partir de ese día, no a partir del cierre del mes."
+    },
+    {
+      "orden": 2,
+      "pregunta": "¿Cuándo se informa al cliente a la Central de Deudores?",
+      "respuesta": "La información se envía mensualmente al Banco Central con la situación del deudor al último día del mes. Un atraso regularizado dentro del mismo mes en el que se produjo no modifica la situación informada si al cierre el cliente está al día."
+    },
+    {
+      "orden": 3,
+      "pregunta": "¿Se puede refinanciar una deuda en mora?",
+      "respuesta": "Sí. La refinanciación requiere evaluación del área de Riesgos y no es automática. El cliente debe solicitarla por cualquiera de los canales de atención; la solicitud se deriva al analista que corresponda según el monto."
+    },
+    {
+      "orden": 4,
+      "pregunta": "¿Refinanciar mejora la situación informada?",
+      "respuesta": "No de inmediato. La normativa exige un período de cumplimiento sostenido antes de que la situación informada mejore. Al cliente debe explicársele esto al momento de firmar, para evitar un reclamo posterior."
+    },
+    {
+      "orden": 5,
+      "pregunta": "¿Qué pasa con la tarjeta de crédito mientras el cliente está en mora?",
+      "respuesta": "El límite queda inhabilitado para nuevos consumos desde el primer día de atraso y se rehabilita al regularizar. La inhabilitación no cancela los consumos en cuotas ya realizados, que siguen liquidándose en los resúmenes siguientes."
+    },
+    {
+      "orden": 6,
+      "pregunta": "¿El personal de atención puede ofrecer una quita?",
+      "respuesta": "No. Ninguna quita de capital, intereses o punitorios puede ofrecerse desde los canales de atención. Toda propuesta de quita se canaliza al área de Riesgos, que es la única con atribución para autorizarla."
+    },
+    {
+      "orden": 7,
+      "pregunta": "¿Dónde consultar el detalle del criterio de clasificación?",
+      "respuesta": "El criterio completo está en la política de previsionamiento del banco, que es documentación de uso interno y no debe compartirse con el cliente."
+    }
+  ]
+}
