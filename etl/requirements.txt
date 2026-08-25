@@ -1,0 +1,15 @@
+# Dependencias del ETL. Instalar con:
+#   python3 -m venv .venv && ./.venv/bin/pip install -r etl/requirements.txt
+#
+# Todas se usan para leer el corpus: el corpus esta en siete formatos distintos
+# (informe, punto 9) y cada formato trae sus metadatos en su propio soporte.
+
+PyYAML>=6.0          # front-matter de los documentos .md
+beautifulsoup4>=4.12 # <meta> y cuerpo de los documentos .html
+lxml>=5.0            # parser de beautifulsoup
+python-docx>=1.1     # core properties y custom properties de los .docx
+pypdf>=4.0           # diccionario /Info y extraccion de texto de los .pdf
+
+# No se requiere ninguna biblioteca de embeddings: el embedder por defecto es
+# deterministico y local (etl/embeddings.py), justamente para que el trabajo
+# pueda clonarse y ejecutarse sin credenciales ni costos.
