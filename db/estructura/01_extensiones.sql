@@ -18,6 +18,11 @@ CREATE EXTENSION IF NOT EXISTS unaccent;
 -- Tolerancia a errores de tipeo en la busqueda por titulo de documento.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+-- Habilita el operador de igualdad dentro de indices GiST, que sin esto solo
+-- admiten tipos de rango. Lo necesita la restriccion de exclusion de RD2: a lo
+-- sumo una version vigente por documento en cada instante.
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 
 -- =============================================================================
 -- Configuracion de busqueda de texto completo en espanol, sin acentos

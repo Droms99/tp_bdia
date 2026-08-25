@@ -67,6 +67,10 @@ CREATE TABLE usuario (
     nombre          text        NOT NULL,
     email           text        NOT NULL UNIQUE,
     area_id         integer     NOT NULL REFERENCES area(id),
+    -- Techo de la regla de acceso (informe 4.4 y 5.5): propiedad de la persona,
+    -- no del rol que cumple. La FK se agrega mas abajo, luego de crear
+    -- nivel_confidencialidad.
+    nivel_habilitacion_id smallint NOT NULL,
     activo          boolean     NOT NULL DEFAULT true,
     creado_en       timestamptz NOT NULL DEFAULT now(),
     baja_en         timestamptz,
@@ -95,6 +99,11 @@ CREATE TABLE nivel_confidencialidad (
     CONSTRAINT nivel_orden_positivo CHECK (orden > 0)
 );
 COMMENT ON TABLE nivel_confidencialidad IS 'Escala ordenada: publico < interno < confidencial < restringido. El orden permite expresar el acceso como comparacion y no como enumeracion.';
+
+ALTER TABLE usuario
+    ADD CONSTRAINT usuario_nivel_habilitacion_fk
+    FOREIGN KEY (nivel_habilitacion_id) REFERENCES nivel_confidencialidad(id);
+COMMENT ON COLUMN usuario.nivel_habilitacion_id IS 'Techo de la regla de acceso (informe 4.4): el usuario nunca ve un documento de nivel superior, tenga o no un otorgamiento que lo alcance.';
 
 
 CREATE TABLE acl_documento (
@@ -179,10 +188,18 @@ CREATE TABLE documento_version (
     CONSTRAINT version_hash_unico         UNIQUE (hash_sha256),
     CONSTRAINT version_hash_formato       CHECK (hash_sha256 ~ '^[0-9a-f]{64}$'),
     CONSTRAINT version_vigencia_coherente CHECK (vigente_hasta IS NULL OR vigente_hasta >= vigente_desde),
-    CONSTRAINT version_texto_no_vacio     CHECK (length(trim(texto)) > 0)
+    CONSTRAINT version_texto_no_vacio     CHECK (length(trim(texto)) > 0),
+    -- RD2: a lo sumo una version vigente por documento en cada instante. vigente_hasta
+    -- nulo se lee como vigencia abierta (infinito), no como filas comparables entre si.
+    -- Requiere btree_gist para el operador de igualdad de documento_id dentro del GiST.
+    CONSTRAINT version_vigencia_sin_solape EXCLUDE USING gist (
+        documento_id WITH =,
+        daterange(vigente_desde, vigente_hasta, '[]') WITH &&
+    )
 );
 COMMENT ON TABLE documento_version IS 'Version concreta de un documento. Es inmutable una vez creada: una correccion produce una version nueva, no una modificacion.';
 COMMENT ON COLUMN documento_version.hash_sha256 IS 'Hash del archivo original. Detecta reingesta (R4) y deja constancia de integridad.';
+COMMENT ON CONSTRAINT version_vigencia_sin_solape ON documento_version IS 'RD2. Los limites son inclusivos: la vigente_desde de una version nueva debe ser al dia siguiente de la vigente_hasta de la anterior, no el mismo dia.';
 
 
 CREATE TYPE tipo_relacion_documento AS ENUM ('deroga', 'reemplaza', 'complementa', 'referencia');
@@ -303,6 +320,8 @@ CREATE TABLE respuesta (
     -- Comparte la fecha con su consulta: garantiza colocacion en la misma particion.
     CONSTRAINT respuesta_consulta_fk FOREIGN KEY (consulta_id, creado_en)
         REFERENCES consulta(id, creado_en) ON DELETE CASCADE,
+    -- Cardinalidad 1:1 de 4.3: una consulta produce a lo sumo una respuesta (5.5).
+    CONSTRAINT respuesta_consulta_unica UNIQUE (consulta_id, creado_en),
     CONSTRAINT respuesta_confianza_valida CHECK (confianza IS NULL OR confianza BETWEEN 0 AND 1)
 ) PARTITION BY RANGE (creado_en);
 COMMENT ON TABLE respuesta IS 'Respuesta generada a partir de los fragmentos recuperados. El modelo de lenguaje es una caja negra: aca solo se registra cual se uso y cuanto consumio.';
@@ -319,6 +338,8 @@ CREATE TABLE respuesta_fuente (
     PRIMARY KEY (respuesta_id, chunk_id, creado_en),
     CONSTRAINT respuesta_fuente_respuesta_fk FOREIGN KEY (respuesta_id, creado_en)
         REFERENCES respuesta(id, creado_en) ON DELETE CASCADE,
+    -- RD10: las posiciones del ranking son unicas dentro de cada respuesta (5.5).
+    CONSTRAINT fuente_posicion_unica    UNIQUE (respuesta_id, posicion, creado_en),
     CONSTRAINT fuente_posicion_positiva CHECK (posicion > 0)
 ) PARTITION BY RANGE (creado_en);
 COMMENT ON TABLE respuesta_fuente IS 'Registra que fragmentos originaron cada respuesta (D4). Es la tabla que responde directamente al requisito de trazabilidad del caso, y una de las de mayor crecimiento.';
