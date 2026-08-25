@@ -8,6 +8,9 @@ version: "2.3"
 vigente_desde: 2022-06-01
 vigente_hasta: 2026-01-31
 estado: derogado
+relaciones:
+  - tipo: deroga
+    documento: DOC-TEC-009
 etiquetas: [seguridad_informacion, politica, gobierno_de_datos, historico]
 ---
 

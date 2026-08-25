@@ -1,0 +1,71 @@
+==============================================================================
+BANCO EJEMPLO S.A. - GESTOR DOCUMENTAL - EXPORTACION TEXTO PLANO
+==============================================================================
+CODIGO:             DOC-TEC-009
+TITULO:             Normas de uso aceptable de recursos informaticos
+TIPO:               documento_historico
+AREA:               Tecnologia
+CONFIDENCIALIDAD:   interno
+VERSION:            1.4
+VIGENTE DESDE:      2016-03-01
+VIGENTE HASTA:      2022-05-31
+ESTADO:             derogado
+ETIQUETAS:          seguridad_informacion, uso_aceptable, historico, normas
+RELACIONES:         NINGUNA
+==============================================================================
+
+NORMAS DE USO ACEPTABLE DE RECURSOS INFORMATICOS
+================================================
+
+  DOCUMENTO DEROGADO. Rigio hasta el 31/05/2022. Fue absorbido por la
+  politica de seguridad de la informacion DOC-TEC-014, que a su vez fue
+  derogada por DOC-TEC-021. Se conserva por obligacion de trazabilidad y no
+  debe utilizarse como referencia vigente.
+
+1. OBJETO
+---------
+
+Establecer las condiciones de uso de los recursos informaticos provistos por
+el banco: computadoras de escritorio, notebooks, correo electronico
+corporativo, acceso a internet y telefonia.
+
+2. USO PERMITIDO
+----------------
+
+Los recursos se proveen para el desempeno de las funciones laborales. Se
+admite un uso personal ocasional y razonable que no interfiera con la
+actividad, no consuma recursos de forma significativa y no comprometa la
+seguridad.
+
+3. USO PROHIBIDO
+----------------
+
+  * Instalar software no autorizado por el area de Tecnologia.
+  * Conectar dispositivos de almacenamiento removible no provistos por el
+    banco.
+  * Utilizar el correo corporativo para actividades ajenas a la funcion.
+  * Compartir la contrasena personal con terceros, incluidos superiores
+    jerarquicos.
+
+4. CORREO ELECTRONICO
+---------------------
+
+El correo corporativo es una herramienta de trabajo y su contenido pertenece
+al banco. El banco se reserva el derecho de acceder a las casillas por razones
+fundadas de auditoria o investigacion, con intervencion del area Legal.
+
+5. CONTRASENAS
+--------------
+
+Las contrasenas son personales e intransferibles, tienen una extension minima
+de ocho caracteres y vencen cada 90 dias.
+
+6. MOTIVO DE LA DEROGACION
+--------------------------
+
+Estas normas fueron absorbidas por la politica de seguridad de la informacion
+DOC-TEC-014 en junio de 2022, en el marco de la unificacion del cuerpo
+normativo de seguridad en un documento unico. Su tratamiento de las
+contrasenas y del almacenamiento removible quedo desactualizado frente a los
+requisitos posteriores del Banco Central.
+

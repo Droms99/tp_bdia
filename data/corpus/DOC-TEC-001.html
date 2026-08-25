@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOC-TEC-001 — Manual de operación del núcleo bancario</title>
+<meta name="codigo" content="DOC-TEC-001">
+<meta name="tipo" content="manual_sistema">
+<meta name="area" content="Tecnología">
+<meta name="confidencialidad" content="confidencial">
+<meta name="version" content="5.2">
+<meta name="vigente-desde" content="2025-05-01">
+<meta name="vigente-hasta" content="">
+<meta name="estado" content="vigente">
+<meta name="keywords" content="core_bancario, manual, operaciones_tecnicas, cierre_diario">
+<meta name="generator" content="Gestor Documental Corporativo 4.2">
+</head>
+<body>
+<div class="documento">
+<p class="rotulo">DOC-TEC-001 · versión 5.2 · confidencial · vigente</p>
+<h1>Manual de operación del núcleo bancario</h1>
+<h2>1. Qué cubre este manual</h2>
+<p>Describe la operación diaria del núcleo bancario: la secuencia de procesos batch, los controles de cada etapa, el tratamiento de errores y los criterios de reproceso. No cubre la configuración del sistema, que está en el manual de configuración correspondiente y tiene un nivel de acceso más restrictivo.</p>
+<h2>2. Ventana operativa</h2>
+<p>El núcleo opera en línea de 6:00 a 22:00. Entre las 22:00 y las 6:00 corre el proceso de cierre diario, durante el cual el sistema acepta consultas pero rechaza operaciones que modifiquen saldos. Las operaciones que llegan por canales digitales durante la ventana de cierre se encolan y se aplican al reabrir.</p>
+<h2>3. Secuencia del cierre diario</h2>
+<ol>
+<li>Corte de operaciones en línea y bloqueo de escritura sobre saldos.</li>
+<li>Consolidación de movimientos del día y validación de partida doble.</li>
+<li>Devengamiento de intereses y comisiones.</li>
+<li>Aplicación de vencimientos de cuotas y débitos automáticos.</li>
+<li>Actualización de la situación de mora por atraso.</li>
+<li>Generación de archivos para cámaras compensadoras y organismos.</li>
+<li>Respaldo de cierre y liberación del sistema.</li>
+</ol>
+<p>Cada etapa deja un registro de inicio, fin y cantidad de registros procesados. Una etapa no comienza si la anterior no cerró correctamente: no hay ejecución parcial del cierre.</p>
+<h2>4. Control de partida doble</h2>
+<p>La etapa 2 valida que la suma de débitos iguale la suma de créditos del día. Un descalce, por mínimo que sea, detiene el cierre. El operador no debe forzar la continuidad: el descalce se escala a la guardia de Tecnología y al área contable, y se resuelve identificando el asiento que lo origina.</p>
+<h2>5. Errores y reproceso</h2>
+<p>Un proceso que falla se reprocesa desde su punto de control, nunca desde el principio del cierre. Reprocesar el cierre completo duplicaría devengamientos ya aplicados. El sistema impide el reproceso completo salvo que se ejecute la reversión previa, que requiere doble autorización.</p>
+<h2>6. Ventana de contingencia</h2>
+<p>Si el cierre no termina antes de las 6:00, se activa el procedimiento de contingencia: se habilita el sistema en modo consulta, se informa a los canales y se completa el cierre en horario extendido. La habilitación en modo consulta con el cierre incompleto es decisión del responsable de guardia y queda registrada.</p>
+<h2>7. Accesos</h2>
+<p>La consola de administración del núcleo se opera exclusivamente con credenciales nominales. Las cuentas de servicio no se usan para operación manual. Esta restricción se incorporó tras la investigación registrada en DOC-AUD-003 y está recogida en la política de seguridad vigente.</p>
+</div>
+</body>
+</html>

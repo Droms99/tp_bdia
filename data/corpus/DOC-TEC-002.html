@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOC-TEC-002 — Manual de configuración del motor de base de datos corporativo</title>
+<meta name="codigo" content="DOC-TEC-002">
+<meta name="tipo" content="manual_sistema">
+<meta name="area" content="Tecnología">
+<meta name="confidencialidad" content="restringido">
+<meta name="version" content="2.0">
+<meta name="vigente-desde" content="2025-11-01">
+<meta name="vigente-hasta" content="">
+<meta name="estado" content="vigente">
+<meta name="keywords" content="base_de_datos, manual, configuracion, infraestructura, seguridad_informatica">
+<meta name="generator" content="Gestor Documental Corporativo 4.2">
+</head>
+<body>
+<div class="documento">
+<p class="rotulo">DOC-TEC-002 · versión 2.0 · restringido · vigente</p>
+<h1>Manual de configuración del motor de base de datos corporativo</h1>
+<blockquote><p><strong>Nivel de confidencialidad: restringido.</strong> Contiene parámetros de configuración, criterios de segmentación de red y el esquema de privilegios de las bases que sostienen el núcleo bancario. El acceso se otorga nominalmente a los administradores de base de datos y al responsable de seguridad de la información. Un desarrollador, un analista funcional o el personal de Operaciones no deben acceder a este documento.</p></blockquote>
+<h2>1. Alcance</h2>
+<p>Cubre la configuración de las instancias productivas del motor de base de datos corporativo: los parámetros de memoria y concurrencia, el esquema de privilegios, la configuración de auditoría interna del motor y la política de retención de bitácoras.</p>
+<h2>2. Principio de mínimo privilegio</h2>
+<p>Ninguna aplicación se conecta con un rol propietario de objetos. Cada aplicación tiene un rol de conexión sin privilegios de definición de esquema, y los objetos pertenecen a un rol administrativo que no se usa para conectarse. Esta separación es la que permite que las políticas de seguridad a nivel de fila sean efectivas: el propietario de una tabla las ignora salvo que se fuerce explícitamente.</p>
+<h2>3. Roles</h2>
+<table>
+<thead><tr><th>Rol</th><th>Función</th><th>Privilegios</th></tr></thead>
+<tbody>
+<tr><td>Rol de aplicación</td><td>Conexión de los sistemas</td><td>Lectura y escritura acotadas por políticas de fila</td></tr>
+<tr><td>Rol de curaduría</td><td>Carga y mantenimiento de contenidos</td><td>Escritura sobre las tablas de catálogo</td></tr>
+<tr><td>Rol de auditoría</td><td>Revisión y control</td><td>Solo lectura, incluidas las bitácoras</td></tr>
+<tr><td>Rol administrativo</td><td>Administración del motor</td><td>Definición de esquema; no se usa desde aplicaciones</td></tr>
+</tbody>
+</table>
+<h2>4. Auditoría del motor</h2>
+<p>Se registra toda conexión, todo cambio de esquema y toda modificación de privilegios. Las bitácoras se envían a un almacén externo al servidor de base de datos dentro de los cinco minutos: una bitácora que vive únicamente en el servidor auditado no sirve como evidencia si ese servidor resulta comprometido.</p>
+<h2>5. Retención de bitácoras</h2>
+<p>Las bitácoras de conexión y de cambios de privilegios se conservan por el plazo que fija la normativa de conservación documental. Su eliminación anticipada requiere autorización del Oficial de Seguridad de la Información y queda registrada a su vez.</p>
+<h2>6. Copias de resguardo</h2>
+<p>La configuración de copias sigue la política de resguardo y continuidad operativa. El manual solo fija los parámetros técnicos: modo de respaldo, ventana, verificación de restauración y cifrado en reposo del medio de destino.</p>
+<h2>7. Cambios de configuración</h2>
+<p>Todo cambio de parámetro en una instancia productiva sigue el circuito de gestión de cambios, con ventana aprobada y plan de retroceso. Un cambio aplicado fuera de ese circuito se considera incidente de seguridad y se trata como tal.</p>
+</div>
+</body>
+</html>

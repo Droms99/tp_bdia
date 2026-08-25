@@ -1,0 +1,61 @@
+{
+  "codigo": "DOC-TEC-025",
+  "titulo": "Preguntas frecuentes sobre acceso a sistemas",
+  "tipo": "faq",
+  "area": "Tecnología",
+  "confidencialidad": "publico",
+  "version": "1.0",
+  "vigente_desde": "2026-03-10",
+  "vigente_hasta": null,
+  "estado": "vigente",
+  "etiquetas": [
+    "accesos",
+    "mesa_de_ayuda",
+    "preguntas_frecuentes",
+    "contrasenas"
+  ],
+  "exportado_de": "base de conocimiento corporativa",
+  "introduccion": "Material de la mesa de ayuda. Puede compartirse con cualquier empleado del banco.",
+  "entradas": [
+    {
+      "orden": 1,
+      "pregunta": "Olvidé mi contraseña. ¿Cómo la recupero?",
+      "respuesta": "Desde el portal de autogestión, con la validación del segundo factor que tengas configurado. Si no podés usar el segundo factor, tenés que llamar a la mesa de ayuda desde un teléfono registrado. La mesa de ayuda no restablece contraseñas por correo electrónico."
+    },
+    {
+      "orden": 2,
+      "pregunta": "¿Cada cuánto vence la contraseña?",
+      "respuesta": "Cada 60 días para los sistemas críticos. No se puede reutilizar ninguna de las últimas diez."
+    },
+    {
+      "orden": 3,
+      "pregunta": "Necesito acceso a un sistema nuevo. ¿Lo pido yo?",
+      "respuesta": "No. El acceso lo solicita tu gerencia, indicando el sistema, el perfil y la justificación funcional. Una solicitud iniciada por la propia persona se rechaza."
+    },
+    {
+      "orden": 4,
+      "pregunta": "¿Por qué me sacaron un acceso que tenía?",
+      "respuesta": "Los accesos con privilegios administrativos expiran a los 90 días si no se renuevan. Además, cada trimestre las gerencias revisan los accesos de su personal y dan de baja los que ya no corresponden a la función."
+    },
+    {
+      "orden": 5,
+      "pregunta": "¿Puedo prestarle mi usuario a un compañero por un rato?",
+      "respuesta": "No, en ninguna circunstancia. Las credenciales son personales e intransferibles. Compartirlas es falta grave: si tu compañero necesita acceso, se solicita por el circuito."
+    },
+    {
+      "orden": 6,
+      "pregunta": "Trabajo con un proveedor externo. ¿Puede usar mi acceso?",
+      "respuesta": "No. Los proveedores tienen sus propias credenciales nominales, con vigencia acotada a la duración del contrato."
+    },
+    {
+      "orden": 7,
+      "pregunta": "¿El banco puede ver mi correo corporativo?",
+      "respuesta": "El correo corporativo es una herramienta de trabajo y su contenido pertenece al banco. El acceso por parte del banco requiere una razón fundada de auditoría o investigación y la intervención del área Legal."
+    },
+    {
+      "orden": 8,
+      "pregunta": "¿A quién le reporto algo que me parece un problema de seguridad?",
+      "respuesta": "A la mesa de ayuda, de inmediato, aunque no estés seguro de que sea un problema real. Reporta quien detecta: la clasificación no es tu responsabilidad."
+    }
+  ]
+}
