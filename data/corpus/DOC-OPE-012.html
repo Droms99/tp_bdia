@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOC-OPE-012 — Manual del sistema de caja de sucursal</title>
+<meta name="codigo" content="DOC-OPE-012">
+<meta name="tipo" content="manual_sistema">
+<meta name="area" content="Operaciones">
+<meta name="confidencialidad" content="interno">
+<meta name="version" content="4.0">
+<meta name="vigente-desde" content="2025-03-15">
+<meta name="vigente-hasta" content="">
+<meta name="estado" content="vigente">
+<meta name="keywords" content="caja, sucursal, manual, operaciones, arqueo">
+<meta name="generator" content="Gestor Documental Corporativo 4.2">
+</head>
+<body>
+<div class="documento">
+<p class="rotulo">DOC-OPE-012 · versión 4.0 · interno · vigente</p>
+<h1>Manual del sistema de caja de sucursal</h1>
+<h2>1. Alcance</h2>
+<p>Describe la operación del sistema de caja: apertura de la sesión, tipos de transacción, límites, arqueo y cierre. No cubre los controles de seguridad física de la sucursal, que están en el instructivo de apertura y cierre.</p>
+<h2>2. Sesión de caja</h2>
+<p>La sesión se abre con la credencial nominal del cajero y el registro del fondo fijo recibido. No existe la sesión compartida: dos cajeros no pueden operar sobre la misma sesión, ni siquiera durante un relevo. El relevo implica cerrar una sesión y abrir otra, con arqueo intermedio.</p>
+<h2>3. Tipos de transacción</h2>
+<table>
+<thead><tr><th>Transacción</th><th>Límite por operación</th><th>Autorización adicional</th></tr></thead>
+<tbody>
+<tr><td>Depósito en efectivo</td><td>Sin límite</td><td>Declaración de origen sobre el umbral normativo</td></tr>
+<tr><td>Extracción en efectivo</td><td>Límite de la categoría de sucursal</td><td>Supervisor por encima del límite</td></tr>
+<tr><td>Pago de servicios</td><td>Sin límite</td><td>No requiere</td></tr>
+<tr><td>Cambio de billetes</td><td>Límite diario por cliente</td><td>Supervisor por encima del límite</td></tr>
+</tbody>
+</table>
+<h2>4. Límites y autorizaciones</h2>
+<p>El sistema bloquea la operación que supera el límite y solicita la autorización del supervisor, que se otorga con credencial propia. La autorización del supervisor queda registrada con su identificación: no existe una clave genérica de supervisión.</p>
+<h2>5. Reversión de operaciones</h2>
+<p>Una operación mal registrada se reversa; no se corrige ni se borra. La reversión genera un asiento propio que deja visible la operación original y su anulación. Solo puede reversarse una operación de la sesión en curso; una operación de una sesión ya cerrada requiere ajuste contable con intervención del área de Operaciones.</p>
+<h2>6. Arqueo</h2>
+<p>El sistema calcula el saldo teórico de la caja en cualquier momento de la sesión. El arqueo compara ese saldo teórico contra el conteo físico. La diferencia se registra en el mismo acto: el sistema no permite cerrar la sesión con una diferencia sin registrar ni justificar.</p>
+<h2>7. Cierre</h2>
+<p>El cierre de sesión requiere arqueo conforme y entrega del efectivo al tesoro. Una sesión que queda abierta al cierre de la sucursal genera una alerta automática a la gerencia de la sucursal y al área de Operaciones.</p>
+<h2>8. Indisponibilidad del sistema</h2>
+<p>Si el sistema no está disponible, la caja no opera. No existe operatoria manual de caja con registro posterior: la trazabilidad de cada movimiento de efectivo es un requisito de control interno y no admite excepción por contingencia técnica.</p>
+</div>
+</body>
+</html>

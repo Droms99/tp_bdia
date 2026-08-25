@@ -1,0 +1,77 @@
+==============================================================================
+BANCO EJEMPLO S.A. - GESTOR DOCUMENTAL - EXPORTACION TEXTO PLANO
+==============================================================================
+CODIGO:             DOC-OPE-004
+TITULO:             Instructivo de apertura y cierre de sucursal
+TIPO:               instructivo
+AREA:               Operaciones
+CONFIDENCIALIDAD:   interno
+VERSION:            1.5
+VIGENTE DESDE:      2023-04-01
+VIGENTE HASTA:      SIN LIMITE
+ESTADO:             vigente
+ETIQUETAS:          sucursal, apertura, cierre, operaciones, seguridad_fisica
+RELACIONES:         NINGUNA
+==============================================================================
+
+INSTRUCTIVO DE APERTURA Y CIERRE DE SUCURSAL
+============================================
+
+1. OBJETO
+---------
+
+Describir las tareas de apertura y de cierre de una sucursal, con el detalle
+de los controles de seguridad fisica y de arqueo que deben cumplirse en cada
+una.
+
+2. APERTURA
+-----------
+
+La apertura la realizan dos personas, nunca una sola. La primera verifica
+desde el exterior que no haya senales de intrusion ni indicios de una
+situacion anomala antes de que la segunda ingrese. Ante cualquier senal, no se
+ingresa y se llama a la central de monitoreo.
+
+Una vez adentro, se desactiva la alarma con la clave personal de quien
+ingresa, se verifica el estado del tesoro y se registra la apertura en el
+libro de novedades.
+
+3. HABILITACION DE CAJAS
+------------------------
+
+Cada cajero recibe su fondo fijo del tesoro, lo cuenta en presencia del
+responsable del tesoro y firma la conformidad. Un fondo recibido sin contar no
+admite reclamo posterior por diferencias.
+
+4. DURANTE LA JORNADA
+---------------------
+
+Los excedentes de efectivo por encima del limite operativo de la caja se
+remesan al tesoro durante la jornada, sin esperar al cierre. El limite por
+caja esta fijado en el manual del sistema de caja y depende de la categoria de
+la sucursal.
+
+5. CIERRE DE CAJAS
+------------------
+
+Cada cajero arquea su caja, concilia contra el sistema y entrega el efectivo
+al tesoro. Las diferencias, sean faltantes o sobrantes, se registran el mismo
+dia y no se compensan entre cajeros ni entre jornadas. Una diferencia por
+encima del umbral definido se escala como incidente de riesgo operacional.
+
+6. CIERRE DE LA SUCURSAL
+------------------------
+
+Se verifica que el tesoro este cerrado y con su clave de tiempo activada, que
+no quede personal en el interior, que los equipos queden apagados y que la
+alarma quede activada. El cierre lo realizan tambien dos personas y se
+registra en el libro de novedades.
+
+7. CONTINGENCIAS
+----------------
+
+Ante corte de energia, falla de la conexion o alarma disparada, se aplica el
+procedimiento de contingencia de la sucursal. Bajo ninguna circunstancia se
+opera el tesoro sin registro sistemico: si el sistema no esta disponible, el
+tesoro no se abre.
+
