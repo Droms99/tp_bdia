@@ -16,13 +16,13 @@ Integrantes: Martin Birman · Gonzalo Castro · Hernando Schidl
 5. [Modelo de implementación](#5-modelo-de-implementación)
 6. [Normalización, desnormalización y embebido](#6-normalización-desnormalización-y-embebido)
 7. [Selección y justificación de la tecnología](#7-selección-y-justificación-de-la-tecnología)
-8. Implementación mínima
+8. [Implementación mínima](#8-implementación-mínima)
 9. Datos de ejemplo
 10. Consultas representativas
 11. Datos semiestructurados, no estructurados y vectoriales
 12. [Arquitectura de datos](#12-arquitectura-de-datos)
-13. Seguridad, permisos y aislamiento
-14. Escalabilidad y rendimiento
+13. [Seguridad, permisos y aislamiento](#13-seguridad-permisos-y-aislamiento)
+14. [Escalabilidad y rendimiento](#14-escalabilidad-y-rendimiento)
 15. Conclusiones
 
 ---
@@ -881,23 +881,24 @@ Cómo queda implementada cada restricción del punto 4.5.
 | # | Cómo se implementa | Estado |
 |---|---|---|
 | RD1 | Derivación en consultas y políticas; el fragmento no guarda clasificación propia | Por construcción |
-| RD2 | Restricción de exclusión sobre el rango de vigencia | Falta `btree_gist` |
+| RD2 | Restricción de exclusión sobre el rango de vigencia | Declarada, con `btree_gist` |
 | RD3 | Verificación sobre las fechas de la versión | Declarada |
 | RD4 | Disparador sobre el estado del documento | Pendiente |
 | RD5 | Verificación en el recorrido recursivo | Pendiente |
 | RD6 | Unicidad sobre `hash_sha256` | Declarada |
 | RD7 | Verificación de exactamente un sujeto | Declarada |
-| RD8 | Regla de aplicación, auditada | Pendiente (`05_rls.sql`) |
+| RD8 | Regla de aplicación, auditada | Declarada (`05_rls.sql`): `acl_documento` no es alcanzable desde `tp_lector` |
 | RD9 | Unicidad de `(version, orden)` más validación en la ingesta | Parcial: falta lo consecutivo |
-| RD10 | Unicidad de `(respuesta, posicion)` | Falta declararla |
-| RD11 | Por construcción: la única vía a `respuesta_fuente` es la recuperación, ya filtrada | Depende de `05_rls.sql` |
+| RD10 | Unicidad de `(respuesta, posicion)` | Declarada |
+| RD11 | Por construcción: la única vía a `respuesta_fuente` es la recuperación, ya filtrada | Cumplida (`05_rls.sql` filtra `chunk` antes) |
 | RD12 | Referencia a `modelo_embedding` y dimensión fijada en el tipo de la columna | Declarada |
-| RD13 | Permisos y políticas de la base | Pendiente (`05_rls.sql`) |
+| RD13 | Permisos y políticas de la base | Declarada (`05_rls.sql`): ningún rol tiene `UPDATE` ni `DELETE` sobre `log_acceso` ni `auditoria` |
 | RD14 | Unicidad sobre `orden` | Declarada |
 | RD15 | Unicidad de `(respuesta, usuario)` | Declarada |
 
-Las restricciones que faltan son la lista de trabajo del punto 8. Ninguna cambia el modelo: todas
-se agregan sobre las tablas que ya existen.
+Las que siguen pendientes (RD4, RD5, y la mitad consecutiva de RD9) dependen de disparadores
+que no se llegaron a escribir; se retoman en el punto 8.2. El resto se cerró en
+`03_tablas.sql`, `04_particiones.sql` y `05_rls.sql`.
 
 ## 6. Normalización, desnormalización y embebido
 
@@ -1112,7 +1113,94 @@ escenarios:
 
 ## 8. Implementación mínima
 
-*(Pendiente — Martin.)*
+La cátedra definió la implementación mínima en términos literales: crear las estructuras
+principales, definir claves, restricciones e índices relevantes, cargar algunos datos de
+ejemplo y ejecutar las consultas representativas. Este punto cubre las primeras tres partes de
+esa definición —estructuras, restricciones, índices— con lo que efectivamente existe en el
+repositorio y con la prueba funcional que se corrió para validarlo. La carga de datos y las
+consultas representativas se desarrollan en los puntos 9 y 10.
+
+### 8.1 Qué se construyó
+
+Cinco scripts en `db/estructura/`, numerados porque el orden de ejecución es parte del diseño
+—una tabla particionada sin sus particiones no acepta un `INSERT`, y una política de RLS no
+puede referenciar una columna que todavía no existe— y dos en `db/indices_vistas/`:
+
+| # | Script | Qué implementa |
+|---|---|---|
+| 1 | `01_extensiones.sql` | `vector`, `pg_trgm`, `unaccent`, `pgcrypto`, `btree_gist`, y la configuración de búsqueda de texto completo en español (`espanol_unaccent`) |
+| 2 | `02_esquemas_roles.sql` | Los esquemas `raw`/`core`/`analytics` (punto 12) y los cuatro roles de conexión (`tp_lector`, `tp_curador`, `tp_auditor`, `tp_admin`) |
+| 3 | `03_tablas.sql` | Las 22 tablas del modelo lógico (punto 5), con sus claves, restricciones de verificación y de unicidad, y `COMMENT ON` |
+| 4 | `04_particiones.sql` | Las particiones mensuales de 2026 más una partición `DEFAULT` para las cinco tablas de eventos, generadas con un `DO` block en vez de repetir el mismo `CREATE TABLE` sesenta veces |
+| 5 | `05_rls.sql` | Las políticas de seguridad por fila sobre `documento`, `documento_version` y `chunk`, y los `GRANT` por tabla y por rol que completan lo que `02_esquemas_roles.sql` había dejado pendiente |
+| 6 | `indices_vistas/01_indices.sql` | Los índices justificados contra el relevamiento del punto 2.2 |
+| 7 | `indices_vistas/02_vistas_materializadas.sql` | `analytics.consultas_sin_cobertura` |
+
+El rango de particiones (doce meses, 2026) es deliberadamente chico: alcanza para cargar los
+datos de ejemplo y para mostrar poda de particiones en un `EXPLAIN`, que es lo que exige la
+implementación mínima. No se generan particiones para años futuros ni se automatiza su
+creación: eso es una pieza de arquitectura que se analiza en el punto 14, no que se construye
+acá, siguiendo la aclaración de la cátedra sobre particionado y escalabilidad.
+
+### 8.2 Estado final de las restricciones del dominio
+
+El punto 5.6 dejó un inventario de las quince restricciones de dominio (RD1 a RD15) del punto
+4.5, con su estado al momento de escribirlo. Después de `03_tablas.sql`, `04_particiones.sql`
+y `05_rls.sql`, ese estado cambió en cinco filas:
+
+| # | Restricción | Estado al cierre |
+|---|---|---|
+| RD2 | A lo sumo una versión vigente por documento | **Declarada**: `EXCLUDE USING gist` con `btree_gist`, sobre `(documento_id, daterange(vigente_desde, vigente_hasta, '[]'))` |
+| RD8 | Quien otorga un acceso debe tener el permiso de otorgar acceso | **Declarada** por la vía de acceso: `acl_documento` no es alcanzable desde `tp_lector`, y solo `tp_curador`/`tp_admin` pueden escribirla (`05_rls.sql`) |
+| RD10 | Posiciones de las fuentes únicas por respuesta | **Declarada**: `UNIQUE (respuesta_id, posicion, creado_en)` |
+| RD11 | Todo fragmento citado era accesible para el autor de la consulta | **Cumplida por construcción**: la política de RLS sobre `chunk` es la única vía por la que un fragmento puede llegar a formar parte de un resultado de recuperación |
+| RD13 | Las entidades de auditoría no admiten modificación ni borrado | **Declarada**: ningún rol, `tp_admin` incluido, tiene `UPDATE` ni `DELETE` sobre `log_acceso` ni `auditoria` |
+
+Las que siguen pendientes son las que dependen de disparadores todavía no escritos: RD4 (que un
+documento derogado no pueda tener una versión con vigencia abierta), RD5 (ausencia de ciclos en
+`documento_relacion`) y la mitad de RD9 (que los órdenes de los fragmentos de una versión sean
+consecutivos, no solo únicos). Ninguna de las tres es necesaria para cargar el corpus de
+ejemplo de forma correcta si quien lo genera respeta esas reglas por construcción, que es lo
+que hace el generador del punto 9; quedan documentadas como trabajo futuro y no como una
+garantía del motor.
+
+### 8.3 Prueba funcional
+
+La implementación mínima pide una prueba funcional, no solo scripts que compilen. Antes de
+integrar cada pieza se corrió contra una instancia real de PostgreSQL 17 con pgvector
+(`docker compose`, base reiniciada entre pruebas):
+
+1. Los siete scripts de la tabla anterior corren en secuencia, sobre una base vacía, sin
+   ningún error.
+2. **RD2** rechaza dos versiones de un mismo documento con vigencia solapada (`ERROR:
+   conflicting key value violates exclusion constraint`).
+3. **Particionado**: una fila con `creado_en` dentro de 2026 cae en su partición mensual; una
+   fila fuera de rango cae en la partición `DEFAULT` sin rechazar el `INSERT`.
+4. **RLS**: con un documento de nivel confidencial y un otorgamiento a un solo usuario, ese
+   usuario ve el documento y su fragmento; un segundo usuario con la misma habilitación pero
+   sin otorgamiento no ve ninguno de los dos. `tp_lector` no puede hacer `SELECT` directo sobre
+   `acl_documento` (`ERROR: permission denied`). `tp_curador` y `tp_auditor`, sin ningún
+   `usuario_id` de sesión declarado, ven el documento completo.
+5. **RD13**: `tp_admin` puede insertar en `auditoria`, pero no puede actualizarla
+   (`ERROR: permission denied for table auditoria`).
+6. **Índices**: con `enable_seqscan = off`, el planificador resuelve un `ORDER BY embedding
+   <=> :vector LIMIT n` con `idx_chunk_embedding_hnsw` y un filtro `tsv @@ plainto_tsquery(...)`
+   con `idx_chunk_tsv_gin`.
+7. **Vista materializada**: una consulta sin `respuesta_fuente` asociada aparece en
+   `analytics.consultas_sin_cobertura` después de un `REFRESH`.
+
+Los siete puntos verifican exactamente las garantías que los puntos 1, 4, 5 y 13 de este
+informe afirman que el modelo sostiene, y no solo que el DDL no tiene errores de sintaxis.
+
+### 8.4 Qué queda deliberadamente fuera
+
+| Pieza | Por qué no está acá |
+|---|---|
+| Datos de ejemplo reales y su carga | Puntos 9 y 10 |
+| Disparadores de RD4, RD5 y la parte consecutiva de RD9 | No bloquean la carga del corpus de ejemplo si el generador respeta esas reglas; quedan como trabajo futuro |
+| Las tres vistas materializadas restantes (documentos más citados, uso por área, antigüedad de lo consultado) | Se describen y se justifican en el punto 2.1.F; son agregaciones del mismo tipo que la que sí se construyó y no aportan nada nuevo a la validación del diseño |
+| Automatización de particiones futuras (`pg_partman` o job programado) | Es arquitectura que se analiza en el punto 14, no implementación mínima (aclaración de la cátedra) |
+| Réplica de solo lectura | Fuera del alcance según 1.3 y 12.5 |
 
 ## 9. Datos de ejemplo
 
@@ -1223,11 +1311,246 @@ tiene que demostrar.
 
 ## 13. Seguridad, permisos y aislamiento
 
-*(Pendiente — Martin.)*
+Este punto documenta cómo `05_rls.sql` implementa la decisión D1 y la regla de acceso de 4.4:
+qué evalúa el motor, quién puede evaluarlo, y qué le queda deliberadamente fuera de alcance.
+
+### 13.1 De la regla a la política
+
+La regla de 4.4 —nivel del documento por debajo de la habilitación del usuario, y un
+otorgamiento vigente que lo alcance salvo nivel público— se traduce en dos funciones SQL,
+`core.puede_acceder_documento(documento_id)` y `core.puede_acceder_chunk(documento_version_id)`,
+y tres políticas de `SELECT` por tabla (`documento`, `documento_version`, `chunk`), una por cada
+rol con un criterio de visibilidad distinto.
+
+**Por qué `documento_version` tiene política propia, y no solo `chunk`.** El borrador de
+mecanismos del punto 4 hablaba de proteger "documento y chunk". En la implementación se agregó
+`documento_version`, porque su columna `texto` es el contenido completo extraído del documento:
+sin política propia, cualquier rol con `SELECT` sobre la tabla lo leería entero sin pasar por la
+fragmentación, lo que abre una vía de fuga (R1) distinta de la búsqueda semántica pero
+igual de real.
+
+**Por qué son funciones y no la condición inline en la política.** Evaluar la regla de 4.4
+requiere consultar `acl_documento` y `usuario_rol`, dos de las tablas más sensibles del modelo
+(3.3): `acl_documento` porque "una fila mal puesta expone un documento entero", `usuario_rol`
+porque revela la estructura de permisos de la organización. Si la política de `chunk`
+consultara esas tablas directamente, `tp_lector` necesitaría `SELECT` sobre ellas para que la
+política pudiera evaluarse, y ese `SELECT` sería utilizable también fuera de la política. La
+función se declara `SECURITY DEFINER`: corre con los privilegios de quien la creó, no de quien
+la invoca, así que `tp_lector` puede invocarla (tiene `EXECUTE`, otorgado explícitamente) sin
+tener nunca `SELECT` sobre `acl_documento` ni `usuario_rol`. Es la misma lógica que D1 aplica a
+nivel de tabla, aplicada a nivel de función: el motor evalúa el permiso sin exponer los datos
+con los que lo evalúa.
+
+Dos detalles de la función importan para su corrección, no solo para su estilo:
+
+- **`SET search_path = core, pg_temp`** fija el `search_path` de la función. Sin esto, una
+  función `SECURITY DEFINER` es vulnerable a que quien la invoca redefina un objeto con el
+  mismo nombre en un esquema que aparezca antes en su propio `search_path`, y logre que la
+  función ejecute código que no es el que su dueño escribió.
+- **`REVOKE ALL ... FROM PUBLIC`**, seguido de `GRANT EXECUTE` solo a `tp_lector`. A diferencia
+  de las tablas, las funciones nuevas otorgan `EXECUTE` a `PUBLIC` por omisión en PostgreSQL.
+  Sin el `REVOKE`, cualquier rol con `USAGE` sobre el esquema `core` podría invocar la función,
+  lo que no es un problema de corrección pero sí de disciplina: el `GRANT` explícito documenta
+  quién la usa.
+
+### 13.2 Cuatro roles, tres criterios de visibilidad
+
+Los cuatro roles de `02_esquemas_roles.sql` no comparten política porque no cumplen la misma
+función (1.4):
+
+| Rol | Visibilidad sobre `documento`/`documento_version`/`chunk` | Por qué |
+|---|---|---|
+| `tp_lector` | Filtrada por `core.puede_acceder_documento()` / `puede_acceder_chunk()` | Es el rol de conexión de la aplicación RAG: el que hace la búsqueda "ciega al permiso" que D1 tiene que proteger |
+| `tp_curador` | Completa (`USING (true)`) | No puede clasificar, versionar ni derogar lo que no ve; sus procesos (P1 a P3) necesitan visibilidad total |
+| `tp_auditor` | Completa (`USING (true)`) | "Prácticamente todo el corpus, incluida la documentación derogada... restricciones mínimas, definidas caso por caso" (1.4). Es una decisión de rol, no un caso especial de la regla de 4.4 |
+| `tp_admin` | Completa (`USING (true)`) | Administración de la solución; nunca es el rol de conexión de la aplicación |
+
+Que `tp_curador` y `tp_auditor` tengan visibilidad completa no es una excepción a D1: es la
+misma idea de RLS aplicada con un criterio distinto por rol, que es exactamente para lo que
+PostgreSQL permite declarar varias políticas sobre la misma tabla. El riesgo que D1 ataca es
+específico de la búsqueda semántica de la aplicación (R1); un curador o un auditor que
+consultan directamente, dentro de su función, no reproducen ese riesgo.
+
+Ningún rol, `tp_lector` incluido, tiene `SELECT` directo sobre `acl_documento` ni
+`usuario_rol`. `tp_curador` tiene `SELECT`/`INSERT`/`UPDATE` sobre `acl_documento` —es quien
+otorga permisos— pero no `DELETE`: revocar un acceso es cerrar su ventana de vigencia
+(`UPDATE` de `vigente_hasta`), no borrar la fila, para no perder el historial de quién tuvo
+acceso a qué y hasta cuándo. `tp_auditor` tiene `SELECT` sobre `acl_documento` para poder
+auditar otorgamientos, pero ninguna escritura.
+
+### 13.3 El dueño de las tablas
+
+`ALTER TABLE ... FORCE ROW LEVEL SECURITY` se declara sobre las tres tablas protegidas. En este
+entorno de Docker no tiene efecto visible, porque `tp_bdia` —el usuario que crea las tablas— se
+inicializa como superusuario, y PostgreSQL nunca aplica RLS a un superusuario, con o sin
+`FORCE`. Se declara igual porque es lo correcto para un despliegue donde el dueño del esquema
+no sea superusuario: sin `FORCE`, el dueño de una tabla ignora sus propias políticas de RLS por
+omisión, y esa es exactamente la razón por la que `02_esquemas_roles.sql` advierte, desde antes
+de que existiera `05_rls.sql`, que "la aplicación nunca debe conectarse con el rol dueño".
+
+### 13.4 Fail-closed: qué pasa si la aplicación se olvida de declarar el usuario
+
+La aplicación abre la conexión como `tp_lector` y declara quién pregunta con
+`SET LOCAL app.usuario_id = <id>` antes de cada consulta. La función de chequeo lee ese valor
+con `current_setting('app.usuario_id', true)`, que devuelve `NULL` si no está declarado, en vez
+de lanzar un error. Un `NULL` ahí hace que el `JOIN` contra `usuario` no encuentre ninguna fila,
+y la función devuelve `false` para todo documento. Es una propiedad deliberada: si un error de
+la aplicación olvida declarar el usuario de la sesión, el resultado es que esa sesión no ve
+nada, no que vea todo. Un filtro que falla abierto (mostrar de más ante un error) sería
+exactamente el tipo de fuga que D1 existe para evitar; este falla cerrado.
+
+Por la misma razón, la garantía no depende de que la consulta esté bien escrita (D1): como el
+filtro se evalúa por fila dentro del motor y no en una cláusula `WHERE` que la aplicación arma,
+ni una consulta mal construida ni una vulnerable a inyección SQL puede hacer que el motor
+devuelva una fila que la política no autoriza. La superficie de ataque se reduce a comprometer
+la conexión misma (robar credenciales de `tp_lector` o inyectar un `usuario_id` de sesión que
+no corresponde a quien realmente pregunta), que es un problema de la capa de autenticación de
+la aplicación y no de la base.
+
+### 13.5 Auditoría y trazabilidad
+
+`log_acceso` y `auditoria` son de solo inserción (RD13), y esa garantía no se implementa con
+RLS sino con la ausencia de `GRANT`: ningún rol, `tp_admin` incluido, tiene `UPDATE` ni `DELETE`
+sobre ninguna de las dos. Es una decisión deliberada de no dejar excepción para el
+administrador: la garantía es que nadie pueda alterarlas desde la aplicación, no que quien
+podría elija no hacerlo. Poblar `log_acceso` es responsabilidad de la aplicación (un `INSERT`
+por cada acceso resuelto); poblar `auditoria` automáticamente vía disparadores sobre las tablas
+sensibles (RD4/RD5, mencionado en 8.2) queda pendiente, y este archivo ya deja el `GRANT`
+preparado para cuando existan.
+
+`respuesta_fuente` no tiene política de RLS propia y no la necesita (RD11): la única vía por la
+que un fragmento puede llegar a `respuesta_fuente` es que la aplicación lo haya recuperado antes
+mediante un `SELECT` sobre `chunk`, que ya pasó por su política. La garantía de RD11 es
+consecuencia de la de `chunk`, no una garantía adicional.
+
+### 13.6 Riesgos del punto 1.7 cubiertos por este mecanismo
+
+| Riesgo | Cómo lo ataca este punto |
+|---|---|
+| R1 — Fuga por recuperación | Políticas de RLS sobre `documento`, `documento_version` y `chunk`, evaluadas por el motor en cada fila |
+| R6 — Otorgamientos amplios o vencidos | La función solo considera otorgamientos con `now()` dentro de su ventana de vigencia; uno vencido deja de contar sin que nadie lo borre |
+| R7 — Datos personales en consultas | `tp_lector` tiene `INSERT` pero no `SELECT` sobre `consulta`, `respuesta`, `respuesta_fuente` y `feedback`: ningún usuario puede repasar el historial de otro |
+| R8 — Derivados sin protección | `analytics.consultas_sin_cobertura` solo expone `consulta.texto`, nunca texto de `chunk` ni de `documento_version`, y no es alcanzable desde `tp_lector` |
+
+### 13.7 Límites de este diseño
+
+- **Aislamiento entre organizaciones.** El modelo aísla usuarios dentro de una misma
+  organización; no fue pensado para *multi-tenancy* entre entidades distintas (ver 7.6).
+- **La cuenta de servicio compartida.** Nada en este diseño impide que una cuenta de aplicación
+  se comparta entre varias personas reales, lo que rompe la trazabilidad de `app.usuario_id`
+  hasta la identidad real. Es responsabilidad de la capa de autenticación, no de la base;
+  DOC-AUD-003, en el corpus de ejemplo, es precisamente un caso de este tipo de falla.
+- **Auditoría automática incompleta.** Sin los disparadores de RD4/RD5, cambios de estado
+  documental que deberían quedar en `auditoria` no lo hacen todavía por sí solos.
 
 ## 14. Escalabilidad y rendimiento
 
-*(Pendiente — Martin.)*
+### 14.1 Qué crece, y con qué
+
+El punto 2.4 distinguió dos regímenes: un catálogo documental grande pero estable (`documento`,
+`documento_version`, `chunk`), que crece con la organización, y las tablas de eventos
+(`consulta`, `respuesta`, `respuesta_fuente`, `log_acceso`, `auditoria`), que crecen sin límite
+con el uso. Ese régimen distinto es la razón de que solo el segundo grupo esté particionado
+(5.3) y de que este punto trate cada uno con una estrategia distinta.
+
+### 14.2 Particionado: qué se implementó y qué se analiza
+
+Se implementó el particionado declarativo por rango mensual sobre `creado_en` (5.4, 8.1) con
+doce particiones de 2026 más una partición `DEFAULT`. Lo que da escalabilidad no es la
+existencia de las particiones en sí, sino la **poda de particiones**: una consulta acotada por
+fecha (`WHERE creado_en >= '2026-06-01'`) solo toca las particiones que pueden contener esa
+fecha, y el resto ni se abre. Como casi todas las consultas sobre estas tablas se acotan por
+fecha en la práctica (informe 2.4: "casi siempre se consultan acotadas por fecha"), la poda es
+la regla y no la excepción.
+
+Lo que se analiza y no se construye, siguiendo la aclaración de la cátedra:
+
+- **Creación automática de particiones futuras.** En producción, una partición para el mes
+  siguiente se crea con antelación mediante un job programado o la extensión `pg_partman`, no a
+  mano cada vez. La partición `DEFAULT` es la red de seguridad mientras tanto: una fila fuera
+  del rango declarado no rechaza el `INSERT`, cae ahí, y su acumulación es la señal de que hace
+  falta extender el rango.
+- **Purga por partición.** Una vez definida la política de retención (14.7), eliminar datos
+  vencidos es `DROP TABLE` de la partición completa, sin `DELETE` fila por fila ni el
+  `VACUUM` posterior que un borrado masivo exige. Es el motivo principal por el que estas
+  tablas están particionadas, más allá de la poda en las lecturas.
+- **Réplica de solo lectura.** Separar las consultas analíticas (`analytics`) de la carga
+  transaccional (`core`) en una réplica es la respuesta cuando ambas empiecen a competir por
+  recursos (12.5). El volumen del caso, estimado en 2.4, no lo exige todavía.
+
+### 14.3 Índices: qué consulta resuelve cada uno
+
+Cada índice de `db/indices_vistas/01_indices.sql` se justifica contra una pregunta concreta del
+relevamiento (2.2), no contra una regla genérica de "indexar las claves foráneas":
+
+| Índice | Consulta que resuelve | Por qué esa estructura |
+|---|---|---|
+| `idx_chunk_embedding_hnsw` | Búsqueda semántica (camino crítico) | HNSW no necesita reconstruirse cuando cambia el volumen de datos, a diferencia de IVFFlat, cuyo número de listas se fija en función del tamaño de la tabla al crearlo. El costo es un `build` más lento y más memoria, aceptable para el volumen de 2.4 |
+| `idx_chunk_tsv_gin` | Términos exactos, mitad léxica de la recuperación híbrida con RRF | GIN es la estructura estándar de PostgreSQL para `tsvector` |
+| `idx_documento_titulo_trgm` | Tolerancia a errores de tipeo en el título (interfaz del curador) | `pg_trgm` compara por trigramas, no por coincidencia exacta ni por prefijo |
+| `idx_documento_metadatos_gin` | Filtrado por atributos variables de `documento.metadatos` (D6) | Sin este índice, cualquier filtro por `JSONB` degrada a recorrido secuencial completo |
+| `idx_documento_estado` | Filtro de vigencia (D3), presente en cada consulta del camino crítico | Cardinalidad baja (cuatro valores) por sí sola, pero combina en un *bitmap AND* con los índices anteriores en vez de forzar el recorrido secuencial |
+| `idx_acl_documento_documento_id` | El `EXISTS` por `documento_id` dentro de `core.puede_acceder_documento()` (13.1) | Es el índice del que depende el costo de evaluar RLS en cada fila: sin él, cada chequeo de acceso recorre `acl_documento` entera |
+| `idx_consulta_usuario_id` | Uso por usuario/área (2.2) | Se declara sobre la tabla particionada y PostgreSQL la propaga a cada partición existente y futura (5.3) |
+| `idx_respuesta_fuente_chunk_id` | Documentos más citados como fuente (2.1.F) | — |
+| `idx_log_acceso_documento_id` | Quién accedió a un documento dado (2.2) | — |
+| `idx_auditoria_entidad` | Historial de cambios de una fila puntual, por ejemplo un otorgamiento (2.2) | Compuesto `(entidad, entidad_id)`: identifica una fila de cualquier tabla auditada sin necesitar una clave foránea (6.3, la excepción deliberada de `auditoria`) |
+
+El de mayor impacto sobre el diseño de seguridad, más que sobre una consulta de negocio
+puntual, es `idx_acl_documento_documento_id`: el costo de D1 —evaluar el permiso en cada fila
+que la búsqueda semántica considera candidata— es, en la práctica, el costo de este índice.
+
+### 14.4 Capa analítica: una vista construida, tres analizadas
+
+`analytics.consultas_sin_cobertura` (8.1) es la única de las cuatro vistas de 2.1.F que se
+construye. Lleva además un índice único sobre `consulta_id`, no por una consulta que lo
+necesite sino porque es el requisito de PostgreSQL para poder usar
+`REFRESH MATERIALIZED VIEW CONCURRENTLY`, que no bloquea las lecturas mientras se recalcula.
+Importa acá y no en el punto 8 porque la vista se recalcula sobre `consulta`, la tabla de mayor
+volumen de escritura del sistema (2.4): un refresco que bloqueara esa tabla mientras se
+recalcula competiría directamente con el tráfico que el sistema tiene que priorizar.
+
+Las otras tres —documentos más citados, uso por área, antigüedad de lo consultado— son
+agregaciones del mismo tipo sobre las mismas tablas de eventos, y su costo de refresco escala
+con el mismo volumen. Se describen y se justifican en 2.1.F sin construirse: no agregan nada
+nuevo a la validación del diseño físico que ya demuestra la que sí se construyó.
+
+### 14.5 Política de retención (propuesta)
+
+El punto 2.4 identificó que las tablas de eventos necesitan una política de retención, y quedó
+como duda abierta del equipo. Se propone acá, para que el punto quede cubierto, a validar entre
+los tres antes de la entrega:
+
+| Tabla | Retención propuesta | Motivo |
+|---|---|---|
+| `consulta`, `respuesta`, `respuesta_fuente` | 24 meses en detalle, agregados de `analytics` sin límite después | Contienen posibles datos personales (R7); 24 meses cubre dos ciclos de auditoría interna sin acumular indefinidamente texto de preguntas |
+| `feedback` | Igual que `respuesta`, por la relación de clave foránea entre ambas | — |
+| `log_acceso`, `auditoria` | 6 años | Alineado con plazos habituales de conservación de registros en entidades financieras reguladas por el BCRA; son las tablas que sostienen una reconstrucción ante un requerimiento regulatorio |
+
+La purga, una vez fijada esta política, es `DROP TABLE` sobre las particiones vencidas (14.2),
+no un `DELETE` masivo.
+
+### 14.6 Consultas críticas y consultas de análisis
+
+La distinción de 2.2 entre camino crítico (búsqueda semántica, términos exactos, trazabilidad
+de una respuesta, filtrado por permiso) y consultas de análisis o auditoría se traduce
+directamente en dónde se invierte en rendimiento: los índices de 14.3 que sostienen el camino
+crítico (HNSW, GIN, `idx_documento_estado`, `idx_acl_documento_documento_id`) tienen que
+mantener baja latencia siempre; los que sostienen agregaciones (`idx_consulta_usuario_id`,
+`idx_respuesta_fuente_chunk_id`) y la vista materializada pueden tolerar más latencia o un
+resultado desfasado, porque nadie espera una respuesta de eso en el momento en que hace una
+pregunta.
+
+### 14.7 Límites de este diseño
+
+- **HNSW compite con la carga transaccional por memoria** a partir de varias decenas de
+  millones de fragmentos con alta concurrencia de búsqueda (7.6): ahí se reevaluaría separar la
+  recuperación en un motor dedicado.
+- **La partición `DEFAULT` no escala como sustituto de particiones explícitas.** Si acumula
+  volumen relevante, el `EXPLAIN` deja de poder podarla y el problema que el particionado
+  resuelve vuelve a aparecer dentro de esa única partición.
+- **Este diseño no resuelve alta disponibilidad ni recuperación ante desastres** (12.5):
+  particiona y precalcula para rendimiento, no para continuidad operativa.
 
 ## 15. Conclusiones
 
