@@ -17,9 +17,9 @@ Integrantes: Martin Birman · Gonzalo Castro · Hernando Scheidl
 6. [Normalización, desnormalización y embebido](#6-normalización-desnormalización-y-embebido)
 7. [Selección y justificación de la tecnología](#7-selección-y-justificación-de-la-tecnología)
 8. [Implementación mínima](#8-implementación-mínima)
-9. Datos de ejemplo
-10. Consultas representativas
-11. Datos semiestructurados, no estructurados y vectoriales
+9. [Datos de ejemplo](#9-datos-de-ejemplo)
+10. [Consultas representativas](#10-consultas-representativas)
+11. [Datos semiestructurados, no estructurados y vectoriales](#11-datos-semiestructurados-no-estructurados-y-vectoriales)
 12. [Arquitectura de datos](#12-arquitectura-de-datos)
 13. [Seguridad, permisos y aislamiento](#13-seguridad-permisos-y-aislamiento)
 14. [Escalabilidad y rendimiento](#14-escalabilidad-y-rendimiento)
@@ -1204,15 +1204,508 @@ informe afirman que el modelo sostiene, y no solo que el DDL no tiene errores de
 
 ## 9. Datos de ejemplo
 
-*(Pendiente — Hernando.)*
+La consigna no exige un conjunto de datos real, pero sí que los datos permitan **validar las
+entidades, las relaciones, las consultas y las decisiones de diseño**. Ese criterio es el que
+ordenó todo lo que sigue: el corpus no está para llenar tablas, está para que cada decisión del
+punto 1.8 pueda ponerse a prueba contra datos concretos y no sólo argumentarse.
+
+La estrategia combina dos piezas con propósitos distintos: un **corpus fijo versionado**, escrito
+una vez y congelado en el repositorio, y un **generador determinístico** que deriva de él todo lo
+demás.
+
+### 9.1 El corpus: 46 documentos en siete formatos
+
+`data/corpus/` contiene 49 archivos que representan 46 documentos —tres de ellos con más de una
+versión— de un banco simulado. Están escritos en prosa plausible: si fueran texto de relleno, las
+consultas semánticas de la demostración no probarían nada, porque cualquier fragmento se parecería
+a cualquier otro.
+
+La decisión menos obvia del corpus es que **cada documento está en el formato en el que un banco lo
+tendría de verdad**, y no todos en Markdown:
+
+| Formato | Documentos | Fragmentos | Qué representa | Dónde vienen sus metadatos |
+|---|---|---|---|---|
+| `.md` | 11 | 27 | Documentación técnica moderna, instructivos | Front-matter YAML |
+| `.pdf` | 10 | 27 | Normativa del BCRA, informes de investigación firmados | Diccionario `/Info`, con claves propias |
+| `.docx` | 9 | 26 | Políticas y procedimientos formales | *Core properties* + *custom properties* de OOXML |
+| `.html` | 8 | 20 | Páginas del gestor documental de la intranet | Etiquetas `<meta>` |
+| `.json` | 3 | 6 | Exportación de la base de conocimiento | Campos de primer nivel |
+| `.txt` | 3 | 6 | Exportación de un gestor documental viejo | Cabecera `CLAVE: valor` |
+| `.csv` | 2 | 4 | Exportación plana de un sistema de gestión de casos | Columnas repetidas en cada fila |
+
+Esto no es adorno. Tiene tres consecuencias que el trabajo aprovecha:
+
+1. **Justifica el esquema `raw`.** Los metadatos llegan con siete formas distintas. La
+   normalización tiene que ocurrir en algún lado, una sola vez, y ese lado es la capa de aterrizaje
+   (punto 12). Si el corpus fuera homogéneo, `raw` sería una capa sin motivo.
+2. **Hace real el dato no estructurado del punto 11.** Extraer texto de un PDF pierde la jerarquía
+   de títulos y devuelve el pie de página intercalado en el cuerpo; extraer de un CSV obliga a
+   normalizar filas desnormalizadas. Son problemas concretos, resueltos en `etl/extractores.py`, y
+   no afirmaciones sobre lo que pasaría.
+3. **Obliga a normalizar acentos.** Los tres `.txt` simulan una exportación vieja y vienen **sin
+   acentos**. La ingesta pliega los vocabularios controlados —área, tipo, nivel, estado— contra el
+   catálogo comparando sin acentos, pero deja el texto libre como llegó. Por eso hay documentos
+   cuyo título quedó sin tildes, y está bien que se note: es exactamente la razón por la que
+   `01_extensiones.sql` define la configuración `espanol_unaccent`.
+
+### 9.2 Qué está diseñado para probar
+
+Cada rasgo del corpus responde a algo que el diseño afirma y que había que poder verificar:
+
+| Rasgo del corpus | Qué decisión pone a prueba |
+|---|---|
+| Los cuatro niveles de confidencialidad (12 público, 19 interno, 10 confidencial, 5 restringido) | La regla de acceso de 4.4 y la escala ordenada |
+| 5 documentos restringidos con otorgamiento **nominal**, nunca por área | Que el permiso sea una propiedad de la relación usuario-documento (1.4) |
+| `DOC-CMP-005` con tres versiones sucesivas de vigencia no solapada | D2 (los fragmentos cuelgan de la versión) y la restricción `version_vigencia_sin_solape` |
+| Cadena de derogación de tres eslabones: `DOC-TEC-021 → DOC-TEC-014 → DOC-TEC-009` | El recorrido recursivo y la conservación del histórico |
+| 26 relaciones de cuatro tipos (deroga, reemplaza, complementa, referencia) | Que el grafo documental se recorre con SQL y no necesita otra base |
+| 4 documentos derogados, con fragmentos y vector cargados | D3: que lo derogado se conserve y **no** alimente respuestas |
+| Documentos de las seis áreas | La agregación de uso y los otorgamientos cruzados |
+| 10 preguntas sobre temas que el corpus no cubre | La vista de consultas sin cobertura |
+
+### 9.3 El generador determinístico
+
+`etl/generar_dataset.py --semilla N --consultas M` toma el corpus y deriva usuarios, roles,
+otorgamientos, fragmentos vectorizados, consultas, respuestas, fuentes citadas, feedback y
+registros de auditoría. Con la misma semilla produce byte a byte el mismo resultado —verificado
+comparando el hash de la salida entre corridas—, de modo que los números de este informe no cambian
+cada vez que alguien regenera los datos. Lo que produce no se versiona: se regenera.
+
+Dos decisiones del generador merecen justificarse.
+
+**La regla de acceso se implementa dos veces, a propósito.** El generador reimplementa en Python la
+misma regla del punto 4.4 que `core.puede_acceder_documento()` evalúa en SQL. No es una duplicación
+por descuido: es lo que permite que `respuesta_fuente` cite únicamente fragmentos que el autor de la
+consulta podía ver (RD11). Si el generador citara cualquier fragmento, la consulta de trazabilidad
+mostraría una fuga que nunca ocurrió y la consulta que demuestra RLS compararía contra datos que la
+contradicen. Que las dos implementaciones coincidan sobre los mismos datos es, además, una
+verificación cruzada de ambas.
+
+**La falta de cobertura se declara, no se infiere.** Lo natural sería detectar una consulta sin
+cobertura con un piso de similitud. Se midió y con el *embedder* local no funciona: sobre las 63
+preguntas cubiertas y las 10 no cubiertas del banco de preguntas, las distribuciones del mejor
+puntaje se superponen casi por completo (mediana 0,212 contra 0,140; mínimo de las cubiertas 0,063,
+máximo de las no cubiertas 0,226). El mejor barrido de parámetros clasifica bien 58 de 63 cubiertas
+a cambio de aceptar 5 de las 10 no cubiertas. Elegir un umbral a posteriori habría fabricado una
+separación que el sistema no tiene; el generador, que sabe por construcción qué preguntas el corpus
+no responde, lo modela como el hecho que es. La medición queda en el punto 11 como lo que es: el
+límite del *embedder* local.
+
+### 9.4 Los embeddings
+
+Por omisión se usa un *embedder* determinístico y local (`etl/embeddings.py`), sin dependencias ni
+credenciales, para que el repositorio pueda clonarse y reproducirse sin costo. Proyecta el
+vocabulario sobre 1024 dimensiones con *hashing* con signo y normaliza a longitud 1.
+
+Es **léxico, no semántico**: dos textos que comparten palabras quedan cerca, dos textos que dicen lo
+mismo con otras palabras no. Eso cambia la *calidad* de la recuperación, no el *diseño*: el tipo de
+la columna, el índice HNSW, la métrica coseno, el filtro de vigencia y la política de seguridad por
+fila operan igual con un vector de un modelo real. Un proveedor real se conecta por variable de
+entorno (`TP_EMBEDDER_MODULO`) sin tocar el modelo de datos; lo único que no puede cambiarse así es
+la dimensión, que está fijada en `vector(1024)` a propósito.
+
+Vale aclarar por qué el *embedder* por defecto no es un modelo de Anthropic: **la API de Anthropic
+no expone un endpoint de embeddings**. Es precisamente el tipo de dependencia externa que
+`core.modelo_embedding` existe para registrar, y la razón por la que el diseño deja el proveedor
+intercambiable en vez de atarse a uno.
+
+### 9.5 La carga
+
+`db/datos/` la resuelve en cuatro pasos: catálogos (SQL literal, porque son diseño y no datos),
+aterrizaje de los CSV en `raw`, resolución de claves subrogadas hacia `core`, y cierre.
+
+Los CSV usan **claves naturales** —`documento.codigo`, `usuario.email`— y no identificadores.
+Cargar directo a `core` obligaría a que el generador conociera ids que el motor todavía no asignó.
+Con la capa de aterrizaje, la carga es un `COPY` masivo y la resolución de claves es una sentencia
+por tabla. Es la razón de ser del esquema `raw`, ejercida.
+
+El cierre corre ocho verificaciones sobre lo cargado. **Ninguna es decorativa**: si alguna devuelve
+filas, las consultas representativas estarían midiendo sobre datos que contradicen el diseño.
+
+| # | Verifica | Resultado |
+|---|---|---|
+| V1 | Ningún fragmento sin vector | 0 |
+| V2 | Ninguna versión sin fragmentos | 0 |
+| V3 | Órdenes de fragmento consecutivos desde 0 (RD9) | 0 |
+| V4 | Ninguna fuente citada que el autor no pudiera ver (RD11) | 0 |
+| V5 | Ninguna fuente de documento derogado (D3) | 0 |
+| V6 | Ninguna fuente de versión con vigencia ya cerrada (D3) | 0 |
+| V7 | Ninguna respuesta sin fuentes (D4) | 0 |
+| V8 | Ningún evento en la partición `DEFAULT` | 0 |
+
+V4 merece una nota: reimplementa la regla de acceso **fuera** de la política de RLS, deliberadamente.
+Si usara la política para verificar la política, un error en ella no se detectaría.
+
+### 9.6 Volumen cargado
+
+Con la semilla por omisión (`20260825`) y 400 consultas:
+
+| Tabla | Filas | | Tabla | Filas |
+|---|---|---|---|---|
+| `area` | 6 | | `chunk` | 116 |
+| `usuario` | 21 | | `consulta` | 400 |
+| `usuario_rol` | 30 | | `respuesta` | 349 |
+| `documento` | 46 | | `respuesta_fuente` | 1.717 |
+| `documento_version` | 49 | | `feedback` | 116 |
+| `documento_relacion` | 26 | | `log_acceso` | 1.717 |
+| `etiqueta` | 91 | | `auditoria` | 78 |
+| `documento_etiqueta` | 208 | | `analytics.consultas_sin_cobertura` | 51 |
+| `acl_documento` | 73 | | **Total** | **5.038** |
+
+Los 116 fragmentos son el techo que impone un corpus de 46 documentos, y conviene decirlo con
+franqueza: **no alcanzan para mostrar el efecto de un índice HNSW**, que a ese volumen el
+planificador ni siquiera usa. El parámetro `--tokens-objetivo` permite bajar el tamaño de fragmento
+y multiplicar la cantidad, pero eso no crea información nueva. El crecimiento real del sistema está
+en las tablas de eventos —`consulta`, `respuesta_fuente`, `log_acceso`—, que sí son parametrizables
+con `--consultas` y son las que el punto 14 analiza.
 
 ## 10. Consultas representativas
 
-*(Pendiente — Hernando.)*
+Seis consultas, una por archivo en `db/consultas/`, cada una con la pregunta que responde en su
+cabecera. Todas se ejecutaron contra la base cargada; los resultados que se citan acá son los que
+efectivamente devolvieron.
+
+| # | Archivo | Qué demuestra | Rol de conexión |
+|---|---|---|---|
+| 1 | `01_control_de_acceso.sql` | La misma consulta con dos usuarios devuelve resultados distintos | `tp_lector` |
+| 2 | `02_busqueda_hibrida_rrf.sql` | Recuperación híbrida vectorial + léxica fusionada con RRF | `tp_lector` |
+| 3 | `03_trazabilidad.sql` | De qué fragmentos y de qué versión salió cada respuesta | `tp_auditor` |
+| 4 | `04_uso_por_area.sql` | Indicadores de uso por área y por tipo de documento | `tp_auditor` |
+| 5 | `05_consultas_sin_cobertura.sql` | Qué le falta documentar a la organización | `tp_curador` |
+| 6 | `06_cadena_de_derogacion.sql` | Recorrido recursivo del grafo documental | `tp_auditor` |
+
+Que el rol de conexión cambie entre consultas no es un detalle de ejecución: es parte de lo que se
+demuestra. Consultar la documentación, auditar el uso y decidir qué documentar son tres funciones
+distintas y el esquema de privilegios las separa.
+
+### 10.1 Control de acceso: la misma pregunta, dos personas, dos respuestas
+
+**Pregunta:** *"¿Qué pasó con la investigación por accesos indebidos al núcleo bancario?"*
+
+**Por qué es útil.** Es la consulta que justifica todo el diseño. El fragmento más relevante para
+esa pregunta es `DOC-AUD-003`, el informe de investigación, clasificado como restringido. Una
+búsqueda por similitud es ciega al permiso: lo va a encontrar. Y a diferencia de una consulta
+común, acá el modelo **redacta** con ese contenido: la respuesta filtra lo que el documento decía
+aunque el documento nunca se muestre.
+
+La consulta que se ejecuta es **idéntica** para los dos usuarios. Lo único que cambia es el
+`app.usuario_id` que la aplicación declara al abrir la transacción.
+
+| Usuario | Habilitación | Primer resultado |
+|---|---|---|
+| Laura Giménez (Operaciones) | interno | `DOC-TEC-005` — Gestión de accesos (0,163) |
+| Marta Ocampo (Auditoría Interna) | restringido | **`DOC-AUD-003` — Informe de investigación (0,230)** |
+
+Sobre el corpus completo: Laura ve 22 de los 46 documentos y 55 de los 116 fragmentos; Marta, 25 y
+65. El filtro no aparece en ninguna cláusula `WHERE`: no puede olvidarse porque no lo escribe quien
+consulta.
+
+La consulta cierra mostrando que `tp_lector` tampoco puede leer `acl_documento`
+(`ERROR: permission denied`). Sin eso, un usuario podría deducir por diferencia qué documentos
+existen aunque no pueda verlos.
+
+**Un matiz que conviene registrar:** Marta es auditora y aun así ve 25 de 46 documentos, no todos.
+Es correcto. La aplicación siempre se conecta como `tp_lector`, y bajo ese rol el acceso de la
+auditora también se otorga, no se presume. El rol de base `tp_auditor`, que sí tiene visibilidad
+completa, es para la consola de auditoría, no para el RAG.
+
+### 10.2 Búsqueda híbrida con RRF
+
+**Pregunta:** *"¿Qué exige la Comunicación A 7724 sobre autenticación de dos factores?"*
+
+**Por qué es útil.** Las dos mitades de la recuperación fallan en sentidos opuestos, y esta
+pregunta lo muestra en un solo tiro. La búsqueda vectorial entiende el sentido pero es mala con un
+identificador exacto: para el vector, "7724" se parece a "7511" y a "7890". La búsqueda de texto
+completo encuentra "7724" con precisión quirúrgica pero no sabe que "verificación en dos pasos" es
+lo mismo que "autenticación de dos factores".
+
+*Reciprocal Rank Fusion* suma `1/(k + posición)` de cada ranking, con k = 60. No necesita normalizar
+puntajes de escalas distintas —una distancia coseno y un `ts_rank` no son comparables— porque no usa
+los puntajes: usa las posiciones.
+
+El resultado sobre los datos cargados:
+
+| Fragmento | Posición vectorial | Posición léxica | RRF |
+|---|---|---|---|
+| `DOC-BCRA-7724` § 1. Objeto | 1 | 1 | 0,032787 |
+| `DOC-OPE-010` § 1. Objetivo y alcance | 3 | 2 | 0,032002 |
+| `DOC-BCRA-7724` § 7. Vigencia | 2 | 10 | 0,030415 |
+| **`DOC-BCRA-7724` § 3. Código de un solo uso** | **11** | **3** | **0,029958** |
+
+La última fila es el aporte de la fusión: ese fragmento estaba en el puesto 11 del ranking
+vectorial —fuera de cualquier corte razonable— y en el 3 del léxico. La fusión lo sube al séptimo
+lugar general. Ninguna de las dos mitades por separado lo habría entregado.
+
+**Un hallazgo de implementación que vale registrar.** La mitad léxica no puede usar
+`plainto_tsquery`: esa función combina los términos con `AND` y exige que el fragmento los contenga
+todos. Sobre esta pregunta no devuelve **una sola fila**, y la fusión degenera silenciosamente a
+búsqueda vectorial pura. Los términos tienen que combinarse con `OR` y dejar que el ranking ordene.
+Es una diferencia de una línea entre que la mitad léxica aporte todo o no aporte nada, y no falla
+de forma visible: simplemente los resultados empeoran.
+
+### 10.3 Trazabilidad: de qué salió exactamente esta respuesta
+
+**Pregunta:** *"El sistema contestó esto en esta fecha. ¿Con qué fragmentos lo armó, de qué versión
+de qué documento, y esa versión seguía vigente en ese momento?"*
+
+**Por qué es útil.** Es el requisito explícito del caso. Pero el requisito completo es más exigente
+que listar fuentes: `respuesta_fuente` guarda también la posición en el ranking y el puntaje, y con
+eso se puede explicar **por qué** el modelo dijo lo que dijo, no sólo qué documentos tenía a mano.
+
+La consulta muestra la misma pregunta respondida a tres personas con habilitaciones distintas y los
+tres conjuntos de fuentes que quedaron registrados. Es la contraparte auditable de 10.1: aquello
+mostró que el motor devuelve filas distintas; esto muestra que esa diferencia quedó escrita en la
+base y no hay que deducirla.
+
+La sección C exhibe el caso que justifica D2: `DOC-CMP-005` tiene tres versiones, y sólo la vigente
+(3.0) fue citada —54 veces—; las versiones 1.0 y 2.0 conservan sus fragmentos y sus vectores y
+fueron citadas 0 veces. Si los fragmentos colgaran del documento, esa distinción no existiría.
+
+La sección D responde "quién accedió a este documento restringido y por qué vía": sobre
+`DOC-AUD-003` figuran únicamente Marta Ocampo y Mariana Duarte, que son las dos personas con
+otorgamiento nominal. Los accesos registrados son de tipo `recuperación`: nadie los vivió como una
+lectura —preguntaron algo y el sistema usó el documento— y sin registrarlos no existirían en
+ninguna auditoría.
+
+### 10.4 Indicadores de uso por área y por tipo de documento
+
+**Pregunta:** *"¿Quién usa el sistema, para preguntar sobre qué, y dónde está el conocimiento que la
+organización efectivamente consulta?"*
+
+**Por qué es útil.** Tiene dos destinatarios. Al curador le dice dónde poner el esfuerzo: un
+documento muy citado merece revisión cuidadosa antes de publicarle una versión nueva. Al responsable
+de la solución le dice si el sistema sirve, y distingue dos problemas que se confunden: "el sistema
+recupera mal" y "esa área no tiene su documentación cargada".
+
+Resultados salientes:
+
+- Las **preguntas frecuentes** son el 3,4 % de los documentos y el 21,3 % de las citas. Es el tipo
+  de documento con mayor rendimiento por unidad cargada, y no es obvio a priori.
+- Los **documentos históricos** tienen 0 citas sobre 1.717. Es D3 funcionando, medido.
+- El feedback negativo se concentra en Riesgos (60 % no útil) y Legales (50 %), contra 9,5 % en
+  Operaciones. Cruzado con la sección A —Riesgos tiene 10,7 % de consultas sin cobertura, no la
+  peor— sugiere que el problema de Riesgos no es falta de documentación sino recuperación pobre
+  sobre la que tiene.
+- Ningún documento vigente quedó sin ser citado nunca. Con 46 documentos era esperable; a escala
+  real ésta es la consulta que detecta documentación que nadie usa.
+
+### 10.5 Consultas sin cobertura: el mapa de lo que falta documentar
+
+**Pregunta:** *"¿Qué le está preguntando la gente al sistema que la documentación no responde?"*
+
+**Por qué es útil.** Es la única de las seis que produce información que antes **no existía en
+ningún lado**. Las demás explotan datos que la organización ya tenía de alguna forma. Ésta produce
+la lista de preguntas que la gente necesita responder y para las que no hay documento. Antes del
+sistema esa información se perdía: la persona preguntaba, no encontraba, resolvía por otro lado y no
+quedaba rastro.
+
+Está materializada porque recorre `consulta`, la tabla de mayor volumen de escritura, y porque nadie
+necesita el dato al segundo: es insumo de una decisión de curaduría, no del camino crítico.
+
+Sobre los datos cargados, 51 consultas sin cobertura (12,8 %), encabezadas por *"cuál es la política
+de teletrabajo del banco"* (9 veces, 7 personas distintas) y *"cómo se liquidan las operaciones de
+dólar MEP"* (6 veces, 6 personas). Operaciones concentra el 31,4 %.
+
+**Un hallazgo que surgió de ejecutarla.** La vista define "sin cobertura" como "la consulta no citó
+ninguna fuente", y eso ocurre por dos motivos que **no distingue**:
+
+1. No existe documentación sobre el tema. Es el caso que le interesa al curador.
+2. La documentación existe, pero quien preguntó no tenía permiso para verla.
+
+Confundirlos tiene un costo concreto: el curador escribe un documento que ya existe. El
+discriminador está en los propios datos —si la misma pregunta le fue respondida a otra persona, la
+documentación existe— y la consulta lo aplica: de las 51, **50 son falta real de documentación y 1
+es un bloqueo por permiso** (Julián Rearte, habilitación `público`, preguntando por el criterio de
+desafectación de previsiones, que vive en un documento confidencial). Queda anotado como observación
+sobre la definición de la vista, no como corrección: reformularla es una decisión de diseño de la
+capa analítica.
+
+Se registra además una consecuencia del esquema de privilegios: `tp_curador` puede leer la vista
+pero no `core.consulta`, así que **no puede calcular por sí mismo la evolución mensual** —le falta
+el denominador—. Es coherente con la separación de funciones (el curador decide qué documentar, no
+audita el uso), pero vale dejarlo dicho.
+
+### 10.6 Recorrido recursivo de la cadena de derogaciones
+
+**Pregunta:** *"Esta política que rige hoy, ¿a qué derogó? ¿Y aquélla a qué había derogado? ¿Cuál
+era la norma vigente en marzo de 2023?"*
+
+**Por qué es útil.** En un banco regulado la pregunta no es retórica: para determinar si una
+actuación del pasado fue correcta hay que leer la norma que regía **en ese momento**. Por eso
+`DOC-LEG-007` conserva la normativa derogada sin plazo.
+
+`WITH RECURSIVE` reconstruye la cadena completa:
+
+```
+DOC-TEC-021 (vigente, desde 2026-02-01)
+  └─ deroga → DOC-TEC-014 (derogado, 2022-06-01 a 2026-01-31)
+       └─ deroga → DOC-TEC-009 (derogado, 2016-03-01 a 2022-05-31)
+```
+
+Y la sección C entrega la prueba más limpia de D3 que produce el trabajo:
+
+| Estado | Documentos | Fragmentos con vector | Veces citados como fuente |
+|---|---|---|---|
+| vigente | 42 | 108 | 1.717 |
+| derogado | 4 | 8 | **0** |
+
+Los documentos derogados están cargados, fragmentados y vectorizados. Son perfectamente
+recuperables por similitud. Lo único que impide que alimenten una respuesta es el filtro de
+vigencia, que es una decisión de la consulta y no de la política de seguridad —a propósito, para
+que el auditor sí pueda consultar el histórico—.
+
+Este es además el argumento contra sumar una base de grafos: las relaciones entre documentos forman
+un grafo real, pero de 26 aristas y tres niveles de profundidad. Se recorre con una consulta, dentro
+del mismo motor que ya tiene los permisos y las versiones. Sacarlo a Neo4j significaría mantener
+sincronizados dos almacenes para resolver tres saltos.
+
+**Una observación sobre RD5.** Los datos cargados muestran que la restricción "ausencia de ciclos en
+`documento_relacion`" (punto 4.5) está enunciada de más: `DOC-RIE-001` y `DOC-RIE-005` se
+complementan mutuamente, lo que es un ciclo y es correcto —dos políticas pueden complementarse—. Lo
+que no puede tener ciclos es la derogación. Cuando se escriba el disparador, RD5 debería acotarse a
+`deroga` y `reemplaza`, no a los cuatro tipos de arista.
 
 ## 11. Datos semiestructurados, no estructurados y vectoriales
 
-*(Pendiente — Hernando.)*
+El punto 3 clasificó los datos del caso por estructura. Este punto toma las tres categorías que no
+son relacionales puras, muestra **cómo se representan efectivamente** en la implementación y qué
+riesgos aparecen en cada una. El análisis extendido de la parte vectorial está en
+[`vectorial/modelo_vectorial.md`](../vectorial/modelo_vectorial.md); acá va lo que hace falta para
+el informe.
+
+### 11.1 Qué entra en cada categoría
+
+| Categoría | En este sistema | Dónde vive | Cómo se representa |
+|---|---|---|---|
+| **Semiestructurado** | Metadatos que varían según el tipo de documento; contexto de un acceso; estado anterior y posterior de un cambio auditado | `documento.metadatos`, `chunk.metadatos`, `log_acceso.contexto`, `auditoria.datos_antes/despues` | `jsonb` con índice `GIN` |
+| **No estructurado** | El archivo original y su texto extraído; el fragmento; la pregunta del usuario; el comentario libre del feedback | `documento_version.texto`, `chunk.texto`, `consulta.texto`, `feedback.comentario` | `text`, más `tsvector` generado para búsqueda |
+| **Vectorial** | La representación semántica del fragmento y de la pregunta | `chunk.embedding`, `consulta.embedding` | `vector(1024)`, índice HNSW, métrica coseno |
+
+### 11.2 Semiestructurados: por qué JSONB y no columnas
+
+La decisión D6 dice que los atributos que varían entre tipos de documento van en `JSONB` y no en
+columnas propias. El corpus cargado permite dejar de argumentarlo y medirlo. Sobre los 46
+documentos hay **19 claves distintas** en `documento.metadatos`, y ésta es su distribución:
+
+| Clave | Documentos que la tienen | Clave | Documentos |
+|---|---|---|---|
+| `formato_origen` | 46 | `cantidad_entradas` | 5 |
+| `productor`, `paginas`, `texto_extraido` | 10 | `exportado_de` | 5 |
+| `autor_documento`, `propiedades_personalizadas` | 9 | `ambiente`, `conservado_por` | 4 |
+| `generador` | 8 | `sin_acentos`, `sistema_origen` | 3 |
+| `organismo_emisor`, `alcance`, `numero_comunicacion` | 6 | `motivo_derogacion`, `requiere_otorgamiento_nominal` | 3 |
+| | | `filas_desnormalizadas` | 2 |
+
+**Una sola de las diecinueve claves aparece en los 46 documentos.** Modeladas como columnas, las
+otras dieciocho estarían vacías entre el 78 % y el 96 % de las veces. La alternativa clásica
+—entidad-atributo-valor— evita las columnas vacías pero pierde el tipo, obliga a un `JOIN` por
+atributo y hace que una consulta por dos atributos sea una autounión. `JSONB` con índice `GIN`
+resuelve el filtro sin ninguna de las dos cosas, y sin sumar otra base de datos.
+
+Lo importante es dónde está el límite: **en `JSONB` va lo que varía y no participa de una
+restricción de integridad**. El nivel de confidencialidad, el estado y la vigencia no están ahí,
+aunque "sean metadatos": participan de la regla de acceso y del filtro de recuperación, y necesitan
+clave foránea, tipo enumerado y restricción de exclusión. Un atributo que va a `JSONB` es un
+atributo que se renuncia a validar en el motor.
+
+**Riesgos.**
+
+| Riesgo | Cómo se mitiga acá |
+|---|---|
+| Deriva de nombres de clave (`organismo_emisor` contra `organismo`) | Las claves las produce un único punto —`etl/extractores.py`, función `derivar_metadatos`— y no la aplicación en veinte lugares |
+| Que `metadatos` deje de ser un objeto | `CHECK (jsonb_typeof(metadatos) = 'object')` |
+| Que se filtre por `JSONB` sin índice y degrade a recorrido secuencial | `idx_documento_metadatos_gin` |
+| Que un atributo de negocio termine ahí por comodidad y se pierda su validación | Criterio explícito arriba; es una decisión de diseño, no una libertad de la aplicación |
+
+### 11.3 No estructurados: el problema empieza antes de la base
+
+Es la categoría donde este trabajo hizo el aporte menos previsible, y viene de una decisión del
+punto 9: **el corpus está en siete formatos distintos**, porque es como un banco tiene sus
+documentos de verdad. Eso convierte la extracción en un problema real y no en un supuesto.
+
+Los metadatos llegan en siete soportes distintos —front-matter YAML, cabecera de texto plano,
+etiquetas `<meta>`, campos JSON, columnas repetidas de un CSV, *core/custom properties* de OOXML,
+diccionario `/Info` de un PDF—. Unificarlos es exactamente lo que hace la capa `raw` (punto 12), y
+es la razón por la que esa capa existe.
+
+Tres problemas concretos que aparecieron al extraer, con lo que se hizo con cada uno:
+
+**1. El PDF pierde la estructura y ensucia el texto.** `extract_text()` devuelve el texto en el
+orden en que está dibujado: el pie de página aparece intercalado en medio de una oración, los
+párrafos vienen cortados al ancho de la caja de texto y la jerarquía de títulos desapareció —para el
+extractor, un encabezado y un párrafo son ambos una línea—. Sin corregirlo, cada fragmento arrastra
+"Página 3" en el medio y no hay forma de partir por sección. `etl/extractores.py` descarta toda
+línea corta repetida en la mayoría de las páginas —criterio que sirve también para un PDF que no
+generó este proyecto—, reconstruye los párrafos por ancho de caja y recupera los encabezados
+numerados. Los 10 PDF del corpus producen 27 fragmentos con sección identificada.
+
+**2. La exportación de texto plano viene sin acentos.** Los tres `.txt` simulan un gestor documental
+viejo. La ingesta normaliza los vocabularios controlados —área, tipo, nivel, estado— plegando
+acentos contra el catálogo, pero **deja el texto libre como llegó**: el título y el cuerpo son el
+dato del documento y alterarlos sería inventar. La consecuencia es que hay documentos cuyo título
+quedó sin tildes, y es la razón por la que la configuración `espanol_unaccent` no es un lujo: sin
+ella, `gestion` y `gestión` producen lexemas distintos y esos tres documentos serían inencontrables
+para quien escriba con tildes.
+
+**3. El CSV llega desnormalizado.** El export del sistema de gestión de casos repite los metadatos
+del documento en cada fila. Normalizarlo es trivial, pero es el ejemplo más limpio de por qué la
+carga no puede ser un `COPY` directo a `core`.
+
+**Riesgos de esta categoría.**
+
+| Riesgo | Estado |
+|---|---|
+| Fragmentación que corta a mitad de idea y arruina la recuperación | Mitigado: el fragmentador no parte secciones y solapa (punto 9.1) |
+| Texto extraído que no refleja el original y nadie lo nota | **Abierto.** No hay verificación automática de fidelidad de la extracción. Es el riesgo más serio de esta categoría y queda como trabajo futuro |
+| Datos personales incidentales en texto libre | **Abierto en parte.** `consulta.texto` y `feedback.comentario` son texto libre que el usuario escribe; nadie decidió recolectar lo que pueda haber ahí. `DOC-LEG-001` § 7 lo contempla como política; el sistema no lo detecta |
+| Que el original ya no coincida con lo indexado | Mitigado: `hash_sha256` por versión, único, detecta reingesta y da constancia de integridad |
+
+### 11.4 Vectoriales
+
+El detalle está en [`vectorial/modelo_vectorial.md`](../vectorial/modelo_vectorial.md). Lo que el
+informe necesita retener:
+
+**Qué cuesta.** Medido sobre los 116 fragmentos: 464 kB de vectores contra 94 kB de texto, más 936
+kB de índice HNSW. **El vector ocupa cinco veces más que el texto que representa y el índice el
+doble que los vectores** —un `vector(1024)` son 4.100 bytes fijos, tenga el fragmento cien palabras
+o trescientas—. Extrapolado al millón de fragmentos que estima el punto 2.4, la parte vectorial es
+cerca del 90 % del almacenamiento del sistema.
+
+**El fragmento no tiene clasificación propia.** No hay columna `nivel` en `chunk`: la hereda de la
+versión de la que cuelga, y esa pertenencia es la única vía. Un nivel propio sería un dato duplicado
+que puede quedar desalineado del documento, y el día que se desalinee, la desalineación es una fuga.
+
+**El riesgo específico de esta categoría, medido.** Un índice HNSW es aproximado: devuelve un
+conjunto de candidatos cuyo tamaño fija `hnsw.ef_search` (40 por omisión), y la política de
+seguridad se aplica **sobre ese conjunto ya recortado**. Con un usuario de habilitación `público`
+que puede ver 28 de los 116 fragmentos, pidiendo los 10 más relevantes:
+
+| `hnsw.ef_search` | Filas devueltas (se pidieron 10) |
+|---|---|
+| 10 | 1 |
+| 40 (por omisión) | **7** |
+| 200 | 10 |
+
+Con la configuración por omisión el usuario recibe 7 en lugar de 10. **No porque sólo haya 7
+relevantes que pueda ver —hay 28 accesibles— sino porque el índice devolvió 40 candidatos y sólo 7
+le estaban permitidos.** La pérdida es silenciosa: la consulta no falla, devuelve menos.
+
+Esto no compromete la seguridad: el error es siempre hacia mostrar de menos, que es el lado correcto
+para fallar. Pero degrada la calidad de la recuperación y afecta desproporcionadamente a los
+usuarios con menos permisos, que son la mayoría. La mitigación simple es subir `ef_search` en la
+sesión de recuperación en función de qué fracción del corpus ve el usuario; cuesta latencia, no
+correctitud. Al volumen de este trabajo el planificador ni siquiera usa el índice —116 filas— así
+que no se implementa, pero queda documentado como lo que es: **el costo concreto de haber puesto el
+control de acceso dentro del motor**, que sigue siendo la decisión correcta.
+
+**El límite del embedder por defecto.** El *embedder* local es léxico, no semántico (punto 9.4).
+Medido sobre el banco de preguntas, no existe umbral de similitud que separe las preguntas que el
+corpus responde de las que no: las distribuciones se superponen (mediana 0,212 contra 0,140). Un
+modelo real de embeddings separa mucho mejor. Lo que no cambia entre uno y otro es el modelo de
+datos —tipo de columna, índice, métrica, filtros, política de seguridad— y eso es precisamente lo
+que este trabajo evalúa. Es además la razón de fondo por la que la recuperación del diseño es
+híbrida y no sólo vectorial: **la mitad léxica de la recuperación no depende del modelo de
+embeddings**, y con un embedder pobre es la que sostiene la calidad.
 
 ## 12. Arquitectura de datos
 
