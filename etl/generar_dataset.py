@@ -359,6 +359,21 @@ PREGUNTAS = {
     ],
 }
 
+# Preguntas de demostracion: se generan SIEMPRE, con usuario fijo, cualquiera sea
+# la semilla. Las consultas representativas de `db/consultas/` las buscan por su
+# texto para tomar su embedding —que es el mismo dato que la aplicacion pasaria
+# como parametro—, asi que no pueden depender de que el muestreo las elija.
+PREGUNTAS_DEMO = [
+    ('que paso con la investigacion por accesos indebidos al nucleo bancario',
+     'Marta Ocampo'),
+    ('que exige la comunicacion A 7724 sobre autenticacion de dos factores',
+     'Laura Giménez'),
+    ('cual es el procedimiento vigente de conocimiento del cliente',
+     'Ricardo Paz'),
+    ('cada cuanto vence la contraseña de los sistemas criticos',
+     'Diego Ferreyra'),
+]
+
 # Preguntas que el corpus no responde. Son las que alimentan la vista
 # analytics.consultas_sin_cobertura, que el informe describe como la consulta de
 # mayor valor de negocio del trabajo: el mapa de lo que falta documentar.
@@ -513,7 +528,19 @@ def construir_eventos(rng, usuarios, chunks, idx_estatico, acl, cantidad):
     momentos = sorted({INICIO + timedelta(seconds=round(rng.uniform(0, span), 3))
                        for _ in range(int(cantidad * 1.3))})[:cantidad]
 
+    por_nombre = {u['nombre']: u for u in usuarios}
+
     for n, momento in enumerate(momentos, start=1):
+        if n <= len(PREGUNTAS_DEMO):
+            # Las preguntas de demostracion van primero y con usuario fijo.
+            texto, quien = PREGUNTAS_DEMO[n - 1]
+            usuario, sin_cobertura = por_nombre[quien], False
+            vec = _EMB.vectorizar(texto)
+            idx = indice_acceso(acl, momento)
+            top = recuperar(vec, chunks, usuario, idx, momento)
+            emitir(consultas, respuestas, fuentes, feedback, accesos,
+                   n, momento, usuario, texto, vec, top, rng)
+            continue
         # Una de cada ocho consultas es de un tema que el corpus no cubre.
         sin_cobertura = (n % 8 == 0)
         usuario = rng.choice(activos)
@@ -531,65 +558,73 @@ def construir_eventos(rng, usuarios, chunks, idx_estatico, acl, cantidad):
         # Si la pregunta es de un tema que el corpus no cubre, no hay contexto
         # con que responder, cualquiera sea el puntaje que devuelva el embedder.
         top = [] if sin_cobertura else recuperar(vec, chunks, usuario, idx, momento)
+        emitir(consultas, respuestas, fuentes, feedback, accesos,
+               n, momento, usuario, texto, vec, top, rng)
 
-        consultas.append({
-            'clave': f'Q{n:05d}', 'usuario': usuario['email'], 'texto': texto,
-            'embedding': vector_literal(vec), 'modelo': _EMB.nombre,
-            'latencia_ms': rng.randint(280, 2400) if top else rng.randint(120, 600),
-            'creado_en': iso(momento),
-        })
-
-        if not top:
-            # Sin fragmentos recuperados no se genera respuesta: el sistema no
-            # inventa. La consulta queda registrada y cae en la vista de
-            # consultas sin cobertura, que es el dato que le interesa al curador.
-            continue
-
-        entrada = sum(c['tokens'] for _, c in top) + 180
-        respuestas.append({
-            'consulta': f'Q{n:05d}',
-            'texto': redactar(top, texto),
-            'modelo': rng.choice(MODELOS_LLM),
-            'tokens_entrada': entrada,
-            'tokens_salida': rng.randint(90, 380),
-            # La confianza acompaña al puntaje del mejor fragmento recuperado:
-            # una respuesta armada con fuentes flojas no se reporta como firme.
-            'confianza': f'{min(0.985, 0.45 + top[0][0] * 1.6):.3f}',
-            'creado_en': iso(momento),
-        })
-        for pos, (puntaje, c) in enumerate(top, start=1):
-            fuentes.append({
-                'consulta': f'Q{n:05d}', 'documento': c['documento'],
-                'numero_version': c['numero_version'], 'orden_chunk': c['orden'],
-                'posicion': pos, 'puntaje': f'{puntaje:.6f}',
-                'creado_en': iso(momento),
-            })
-            # Un acceso por fragmento recuperado: es lo que permite responder
-            # "quien accedio a este documento en los ultimos noventa dias"
-            # incluyendo los accesos que ocurrieron por via del RAG y que nadie
-            # vivio como una lectura.
-            accesos.append({
-                'usuario': usuario['email'], 'documento': c['documento'],
-                'numero_version': c['numero_version'], 'orden_chunk': c['orden'],
-                'accion': 'recuperacion',
-                'contexto': json.dumps({'consulta': f'Q{n:05d}', 'posicion': pos},
-                                       ensure_ascii=False, sort_keys=True),
-                'creado_en': iso(momento),
-            })
-        # Una de cada tres respuestas recibe feedback.
-        if n % 3 == 0:
-            util = puntaje_promedio(top) > 0.10
-            feedback.append({
-                'consulta': f'Q{n:05d}', 'usuario': usuario['email'],
-                'util': 'true' if util else 'false',
-                'comentario': ('' if util else rng.choice([
-                    'la respuesta cita el documento correcto pero no responde lo que pregunte',
-                    'esto figura en un documento viejo, no en el vigente',
-                    'me falta el detalle del paso a paso',
-                    'la fuente es de otra area y no aplica a mi caso'])),
-                'creado_en': iso(momento + timedelta(minutes=rng.randint(1, 90))),
-            })
     return consultas, respuestas, fuentes, feedback, accesos
+
+
+def emitir(consultas, respuestas, fuentes, feedback, accesos,
+           n, momento, usuario, texto, vec, top, rng):
+    """Escribe la cadena consulta -> respuesta -> fuentes -> accesos -> feedback.
+
+    Las tres tablas de la cadena comparten `creado_en` a proposito: las claves
+    foraneas de 03_tablas.sql son compuestas —(consulta_id, creado_en)— para
+    garantizar que padre e hijo caigan en la misma particion. Que compartan el
+    instante no es una simplificacion del generador: es el requisito del modelo.
+    """
+    clave = f'Q{n:05d}'
+    consultas.append({
+        'clave': clave, 'usuario': usuario['email'], 'texto': texto,
+        'embedding': vector_literal(vec), 'modelo': _EMB.nombre,
+        'latencia_ms': rng.randint(280, 2400) if top else rng.randint(120, 600),
+        'creado_en': iso(momento),
+    })
+    if not top:
+        # Sin fragmentos recuperados no se genera respuesta: el sistema no
+        # inventa. La consulta queda registrada y cae en la vista de consultas
+        # sin cobertura, que es el dato que le interesa al curador.
+        return
+
+    respuestas.append({
+        'consulta': clave, 'texto': redactar(top, texto),
+        'modelo': rng.choice(MODELOS_LLM),
+        'tokens_entrada': sum(c['tokens'] for _, c in top) + 180,
+        'tokens_salida': rng.randint(90, 380),
+        # La confianza acompaña al puntaje del mejor fragmento recuperado: una
+        # respuesta armada con fuentes flojas no se reporta como firme.
+        'confianza': f'{min(0.985, 0.45 + top[0][0] * 1.6):.3f}',
+        'creado_en': iso(momento),
+    })
+    for pos, (puntaje, c) in enumerate(top, start=1):
+        fuentes.append({
+            'consulta': clave, 'documento': c['documento'],
+            'numero_version': c['numero_version'], 'orden_chunk': c['orden'],
+            'posicion': pos, 'puntaje': f'{puntaje:.6f}', 'creado_en': iso(momento),
+        })
+        # Un acceso por fragmento recuperado: es lo que permite responder "quien
+        # accedio a este documento en los ultimos noventa dias" incluyendo los
+        # accesos que ocurrieron por via del RAG y que nadie vivio como lectura.
+        accesos.append({
+            'usuario': usuario['email'], 'documento': c['documento'],
+            'numero_version': c['numero_version'], 'orden_chunk': c['orden'],
+            'accion': 'recuperacion',
+            'contexto': json.dumps({'consulta': clave, 'posicion': pos},
+                                   ensure_ascii=False, sort_keys=True),
+            'creado_en': iso(momento),
+        })
+    if n % 3 == 0:
+        util = puntaje_promedio(top) > 0.10
+        feedback.append({
+            'consulta': clave, 'usuario': usuario['email'],
+            'util': 'true' if util else 'false',
+            'comentario': ('' if util else rng.choice([
+                'la respuesta cita el documento correcto pero no responde lo que pregunte',
+                'esto figura en un documento viejo, no en el vigente',
+                'me falta el detalle del paso a paso',
+                'la fuente es de otra area y no aplica a mi caso'])),
+            'creado_en': iso(momento + timedelta(minutes=rng.randint(1, 90))),
+        })
 
 
 def puntaje_promedio(top):
