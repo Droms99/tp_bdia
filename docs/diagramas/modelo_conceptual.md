@@ -7,6 +7,9 @@ restricciones del dominio.
 Los diagramas están escritos en Mermaid para poder versionarlos y ver los cambios en los *diffs*.
 Se exportan a `.png` al cierre del trabajo.
 
+Los otros diagramas del trabajo: [modelo lógico](modelo_logico.md), [modelo
+físico](modelo_fisico.md) y [arquitectura de datos](arquitectura.md).
+
 ## Notación
 
 Las entidades son rectángulos con sus atributos; las relaciones, rombos. Sobre cada línea va la

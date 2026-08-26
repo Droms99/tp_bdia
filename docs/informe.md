@@ -790,9 +790,10 @@ con el resto de los catálogos.
 ## 5. Modelo de implementación
 
 El punto 4 describió qué información existe y cómo se relaciona. Este define cómo se representa
-en un motor relacional: tablas, claves, restricciones y la traducción de cada cardinalidad. Lo
-implementa [`db/estructura/03_tablas.sql`](../db/estructura/03_tablas.sql), que crea 22 tablas y
-dos tipos enumerados sobre el esquema `core`.
+en un motor relacional: tablas, claves, restricciones y la traducción de cada cardinalidad. El
+diagrama está en [`docs/diagramas/modelo_logico.md`](diagramas/modelo_logico.md) y lo implementa
+[`db/estructura/03_tablas.sql`](../db/estructura/03_tablas.sql), que crea 22 tablas y dos tipos
+enumerados sobre el esquema `core`.
 
 ### 5.1 Criterios de traducción
 
@@ -1117,7 +1118,9 @@ La cátedra definió la implementación mínima en términos literales: crear la
 principales, definir claves, restricciones e índices relevantes, cargar algunos datos de
 ejemplo y ejecutar las consultas representativas. Este punto cubre las primeras tres partes de
 esa definición —estructuras, restricciones, índices— con lo que efectivamente existe en el
-repositorio y con la prueba funcional que se corrió para validarlo. La carga de datos y las
+repositorio y con la prueba funcional que se corrió para validarlo. El modelo físico completo
+—extensiones, tipos, particiones, índices, políticas y privilegios— está en
+[`docs/diagramas/modelo_fisico.md`](diagramas/modelo_fisico.md). La carga de datos y las
 consultas representativas se desarrollan en los puntos 9 y 10.
 
 ### 8.1 Qué se construyó
