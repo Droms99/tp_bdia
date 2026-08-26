@@ -2,7 +2,7 @@
 
 Sistema RAG para consulta de documentación técnica.
 
-Integrantes: Martin Birman · Gonzalo Castro · Hernando Schidl
+Integrantes: Martin Birman · Gonzalo Castro · Hernando Scheidl
 
 ---
 
