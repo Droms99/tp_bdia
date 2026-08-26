@@ -1662,8 +1662,19 @@ carga no puede ser un `COPY` directo a `core`.
 
 ### 11.4 Vectoriales
 
-El detalle está en [`vectorial/modelo_vectorial.md`](../vectorial/modelo_vectorial.md). Lo que el
-informe necesita retener:
+El modelo de datos vectorial completo está en
+[`vectorial/modelo_vectorial.md`](../vectorial/modelo_vectorial.md). Este apartado responde punto
+por punto lo que el caso exige definir y retiene lo que el informe necesita para sostenerse solo.
+
+| Qué exige definirse | Respuesta en este diseño |
+|---|---|
+| **Qué elementos se vectorizan** | Dos, y sólo dos: el fragmento de una versión de documento (`chunk.embedding`) y la pregunta del usuario (`consulta.embedding`). No el documento entero —cubre entre cinco y ocho temas y su vector sería el promedio de todos, que no se parece a ninguno— ni el texto de la respuesta, que se produce y no se recupera |
+| **Qué necesidad resuelve la búsqueda por similitud** | Que alguien pregunte *"¿cuántos factores de autenticación hacen falta?"* y el sistema encuentre el fragmento que dice *"dos factores independientes de categorías distintas"* sin que las palabras coincidan. Es la única vía para responder en lenguaje natural sobre documentación que nadie indexó a mano |
+| **Qué consultas por similitud se resuelven** | Recuperación de los fragmentos más cercanos a una pregunta (consultas 1 y 2); recuperación híbrida fusionando el ranking vectorial con el léxico por RRF (consulta 2); agrupamiento de preguntas equivalentes formuladas distinto, que alimenta la vista de cobertura |
+| **Qué metadatos acompañan a cada vector** | La versión de la que cuelga —y por ella el documento, su área, su nivel y su vigencia—; el modelo con que se produjo y su dimensión; el orden dentro de la versión; la cantidad de tokens; y la sección del documento, que es lo que permite citar "sección 4 del procedimiento" y no el documento entero |
+| **Qué restricciones de acceso se aplican** | Política de seguridad por fila sobre `chunk`, que resuelve el documento a través de la versión y aplica la regla de 4.4. El fragmento **no** tiene clasificación propia: la hereda, y esa herencia es la única vía |
+
+Y lo que hace falta retener:
 
 **Qué cuesta.** Medido sobre los 116 fragmentos: 464 kB de vectores contra 94 kB de texto, más 936
 kB de índice HNSW. **El vector ocupa cinco veces más que el texto que representa y el índice el
@@ -1706,6 +1717,77 @@ datos —tipo de columna, índice, métrica, filtros, política de seguridad— 
 que este trabajo evalúa. Es además la razón de fondo por la que la recuperación del diseño es
 híbrida y no sólo vectorial: **la mitad léxica de la recuperación no depende del modelo de
 embeddings**, y con un embedder pobre es la que sostiene la calidad.
+
+### 11.5 Los tres riesgos de la recuperación
+
+El caso exige analizar qué riesgos aparecen **si se recupera información incorrecta,
+desactualizada o no autorizada**. Son tres riesgos distintos, con mecanismos distintos, y conviene
+responderlos por separado porque el sistema los trata de forma muy desigual.
+
+#### Información no autorizada
+
+Es el riesgo dominante del caso y el único que el diseño ataca a fondo. Su gravedad es específica
+de un sistema RAG: en una consulta común, un permiso mal aplicado muestra un dato de más; acá el
+modelo de lenguaje **redacta con el fragmento**, de modo que la respuesta filtra el contenido aunque
+el documento nunca se muestre y aunque la fuente no se cite. El daño ocurre sin dejar la huella
+habitual.
+
+| Mecanismo | Dónde |
+|---|---|
+| La regla de acceso vive en el motor, no en la aplicación | `05_rls.sql`, política sobre `documento`, `documento_version` y `chunk` |
+| El fragmento no tiene clasificación propia: la hereda de su versión | `chunk` sin columna `nivel` (RD1) |
+| `tp_lector` no puede leer `acl_documento` ni deducir qué existe | `GRANT` de `05_rls.sql`, demostrado en la consulta 1 |
+| Toda fuente citada era accesible para quien preguntó | RD11, verificado en la carga (V4) sobre las 1.717 fuentes |
+| Queda registro de cada acceso por recuperación | `log_acceso`, consulta 3 |
+
+**Riesgo residual:** el que se mide en 11.4 —HNSW filtra después de buscar— degrada la calidad pero
+falla hacia mostrar de menos, que es el lado correcto. No hay, en este diseño, un camino conocido
+por el que un fragmento no autorizado llegue al contexto del modelo.
+
+#### Información desactualizada
+
+En un banco regulado, responder con un procedimiento derogado no es un error cosmético: puede
+significar un incumplimiento. Por eso la vigencia es **criterio de recuperación** y no un dato
+informativo, y por eso es un eje **independiente** del permiso: si estuviera mezclado en la política
+de seguridad, el auditor no podría consultar el histórico derogado, que es precisamente su trabajo.
+
+Sobre los datos cargados el mecanismo funciona: los 4 documentos derogados tienen sus 8 fragmentos
+cargados y vectorizados —son perfectamente recuperables por similitud— y fueron citados **0 veces**
+sobre 1.717 fuentes.
+
+**Riesgo residual, y es real:** el filtro de vigencia lo aplica la consulta, no el motor. Una ruta
+de recuperación nueva que se olvide el `WHERE d.estado = 'vigente'` recupera documentación derogada
+sin que nada lo impida. Es una asimetría deliberada respecto del permiso —que sí es inevitable— y el
+precio de haber separado los dos ejes. La mitigación natural sería una vista de recuperación que
+encapsule el filtro y sea la única superficie que la aplicación consulta; no se implementa acá.
+
+#### Información incorrecta
+
+Es el riesgo peor cubierto de los tres, y conviene decirlo sin adornos porque es el que un lector
+crítico va a buscar.
+
+El sistema no tiene forma de saber si un fragmento responde bien la pregunta. Puede recuperar el
+documento correcto y la sección equivocada, o un fragmento cuyo texto extraído no refleja fielmente
+el original. Tres puntos concretos:
+
+1. **La fidelidad de la extracción no se verifica.** De los siete formatos del corpus, el PDF es el
+   que más pierde: jerarquía de títulos, tablas, orden de lectura. `etl/extractores.py` reconstruye
+   lo que puede, pero **nada compara el texto extraído contra el original**. Un error silencioso de
+   extracción se vectoriza, se recupera y se cita como si fuera el documento.
+2. **El puntaje de similitud no es una medida de corrección.** `respuesta.confianza` acompaña al
+   puntaje del mejor fragmento recuperado; un puntaje alto significa parecido léxico, no respuesta
+   correcta. Con el *embedder* local esa distancia es especialmente grande (11.4).
+3. **La corrección del texto generado está fuera de alcance.** El modelo de lenguaje es una caja
+   negra en este trabajo. Lo que el diseño garantiza no es que la respuesta sea correcta, sino que
+   sea **auditable**: `respuesta_fuente` guarda de qué fragmentos, de qué versión y en qué posición
+   del ranking salió, de modo que una respuesta incorrecta pueda rastrearse hasta su origen y
+   corregirse ahí.
+
+Los dos mecanismos que sí atacan este riesgo son indirectos y ambos están implementados: el
+`hash_sha256` por versión detecta que el original cambió respecto de lo indexado, y el `feedback`
+de los usuarios —60 % de respuestas marcadas como no útiles en Riesgos, contra 9,5 % en
+Operaciones— es la única señal del sistema sobre su propia calidad. Una verificación automática de
+fidelidad de la extracción queda como el trabajo pendiente más importante de esta categoría.
 
 ## 12. Arquitectura de datos
 
