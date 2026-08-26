@@ -94,3 +94,50 @@ make reset     # elimina el volumen y los datos
 ```
 
 La base queda expuesta en `localhost:5433`, para no chocar con un PostgreSQL local en el 5432.
+
+## Cómo ejecutar la implementación mínima
+
+De cero a la base cargada y las consultas ejecutadas, en un comando:
+
+```bash
+make venv     # entorno de Python para el ETL (una sola vez)
+make todo     # reset + up + dataset + estructura + cargar + consultas
+```
+
+O paso por paso, que es lo que conviene para revisar:
+
+```bash
+make up          # levanta PostgreSQL 17 con pgvector
+make dataset     # genera los datos de ejemplo a partir del corpus (determinístico)
+make estructura  # esquemas, tablas, particiones, RLS, índices y vistas
+make cargar      # carga los datos y corre 8 verificaciones de coherencia
+make consultas   # ejecuta las seis consultas representativas
+```
+
+`make cargar` termina imprimiendo ocho verificaciones que deben dar todas en cero. Comprueban,
+entre otras cosas, que ninguna respuesta cite un fragmento que su autor no podía ver y que ninguna
+cite un documento derogado. Si alguna devuelve filas, los datos contradicen el diseño.
+
+El generador es determinístico: `make dataset` con la misma semilla produce siempre el mismo
+conjunto, así que los números del informe no cambian entre ejecuciones. Lo que produce no se
+versiona (`data/generado/`); el corpus fuente sí (`data/corpus/`).
+
+## Consultas incluidas
+
+Seis consultas en `db/consultas/`, cada una con la explicación de qué pregunta responde y por qué
+es útil en su cabecera.
+
+| # | Consulta | Qué demuestra |
+|---|---|---|
+| 1 | Control de acceso | La misma búsqueda, dos usuarios, resultados distintos: el filtro de permisos lo aplica el motor |
+| 2 | Búsqueda híbrida con RRF | Recuperación vectorial y de texto completo fusionadas por *Reciprocal Rank Fusion* |
+| 3 | Trazabilidad | De qué fragmentos y de qué versión de qué documento salió cada respuesta |
+| 4 | Uso por área | Indicadores de uso, documentos más citados y satisfacción por área |
+| 5 | Consultas sin cobertura | Qué le está preguntando la gente que la documentación no responde |
+| 6 | Cadena de derogación | Recorrido recursivo del grafo documental y prueba de que lo derogado no responde |
+
+Los datos de ejemplo son un corpus de 46 documentos bancarios simulados en siete formatos —PDF,
+DOCX, HTML, Markdown, TXT, JSON y CSV—, porque es como una organización tiene su documentación de
+verdad y porque obliga a que la ingesta normalice metadatos que llegan en siete soportes distintos.
+Hay muestras de cada entidad en `data/ejemplos/` para revisar la forma de los datos sin levantar
+la base.
