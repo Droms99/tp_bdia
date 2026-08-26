@@ -1,0 +1,113 @@
+{
+    "usuarios": [
+        {
+            "area": "Operaciones",
+            "email": "lgimenez@banco-ejemplo.com.ar",
+            "roles": [
+                "consultor"
+            ],
+            "nombre": "Laura Giménez",
+            "habilitacion": "interno (orden 2)",
+            "documentos_visibles": 22,
+            "documentos_en_la_base": 46
+        },
+        {
+            "area": "Compliance",
+            "email": "rpaz@banco-ejemplo.com.ar",
+            "roles": [
+                "consultor"
+            ],
+            "nombre": "Ricardo Paz",
+            "habilitacion": "confidencial (orden 3)",
+            "documentos_visibles": 21,
+            "documentos_en_la_base": 46
+        },
+        {
+            "area": "Auditoría Interna",
+            "email": "mocampo@banco-ejemplo.com.ar",
+            "roles": [
+                "auditor",
+                "consultor"
+            ],
+            "nombre": "Marta Ocampo",
+            "habilitacion": "restringido (orden 4)",
+            "documentos_visibles": 25,
+            "documentos_en_la_base": 46
+        }
+    ],
+    "_descripcion": "Tres usuarios con habilitaciones distintas y los otorgamientos que los alcanzan. La habilitacion es el techo: el usuario nunca ve un documento de nivel superior, tenga o no un otorgamiento. El otorgamiento es el piso: salvo los documentos publicos, sin otorgamiento vigente no hay acceso. Notese que un documento de nivel restringido no se otorga nunca por area, solo nominalmente.",
+    "otorgamientos": [
+        {
+            "nivel": "restringido",
+            "documento": "DOC-AUD-003",
+            "destinatario": "mocampo@banco-ejemplo.com.ar",
+            "granularidad": "usuario",
+            "otorgado_por": "fibarra@banco-ejemplo.com.ar",
+            "vigente_desde": "2026-01-02T12:00:00+00:00",
+            "vigente_hasta": null
+        },
+        {
+            "nivel": "restringido",
+            "documento": "DOC-AUD-003",
+            "destinatario": "mduarte@banco-ejemplo.com.ar",
+            "granularidad": "usuario",
+            "otorgado_por": "fibarra@banco-ejemplo.com.ar",
+            "vigente_desde": "2026-01-02T12:00:00+00:00",
+            "vigente_hasta": null
+        },
+        {
+            "nivel": "restringido",
+            "documento": "DOC-AUD-003",
+            "destinatario": "auditor",
+            "granularidad": "rol",
+            "otorgado_por": "fibarra@banco-ejemplo.com.ar",
+            "vigente_desde": "2026-01-02T12:00:00+00:00",
+            "vigente_hasta": null
+        },
+        {
+            "nivel": "confidencial",
+            "documento": "DOC-AUD-009",
+            "destinatario": "auditor",
+            "granularidad": "rol",
+            "otorgado_por": "fibarra@banco-ejemplo.com.ar",
+            "vigente_desde": "2026-01-02T12:00:00+00:00",
+            "vigente_hasta": null
+        },
+        {
+            "nivel": "confidencial",
+            "documento": "DOC-AUD-009",
+            "destinatario": "Auditoría Interna",
+            "granularidad": "area",
+            "otorgado_por": "fibarra@banco-ejemplo.com.ar",
+            "vigente_desde": "2026-01-02T12:00:00+00:00",
+            "vigente_hasta": null
+        },
+        {
+            "nivel": "confidencial",
+            "documento": "DOC-AUD-009",
+            "destinatario": "salmada@banco-ejemplo.com.ar",
+            "granularidad": "usuario",
+            "otorgado_por": "fibarra@banco-ejemplo.com.ar",
+            "vigente_desde": "2026-05-20T12:00:00+00:00",
+            "vigente_hasta": "2026-06-15T12:00:00+00:00"
+        },
+        {
+            "nivel": "interno",
+            "documento": "DOC-CMP-005",
+            "destinatario": "Operaciones",
+            "granularidad": "area",
+            "otorgado_por": "cbustos@banco-ejemplo.com.ar",
+            "vigente_desde": "2026-01-02T12:00:00+00:00",
+            "vigente_hasta": null
+        },
+        {
+            "nivel": "interno",
+            "documento": "DOC-CMP-005",
+            "destinatario": "Compliance",
+            "granularidad": "area",
+            "otorgado_por": "cbustos@banco-ejemplo.com.ar",
+            "vigente_desde": "2026-01-02T12:00:00+00:00",
+            "vigente_hasta": null
+        }
+    ]
+}

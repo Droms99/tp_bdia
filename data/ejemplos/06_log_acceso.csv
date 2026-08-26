@@ -1,0 +1,9 @@
+usuario,accion,documento,version,fragmento,contexto,creado_en
+mocampo@banco-ejemplo.com.ar,recuperacion,DOC-AUD-003,1.0,0,"{""consulta"": ""Q00085"", ""posicion"": 3}",2026-02-08 03:31:37.025+00
+mocampo@banco-ejemplo.com.ar,recuperacion,DOC-AUD-003,1.0,0,"{""consulta"": ""Q00100"", ""posicion"": 3}",2026-02-12 00:35:45.52+00
+mocampo@banco-ejemplo.com.ar,recuperacion,DOC-AUD-003,1.0,2,"{""consulta"": ""Q00173"", ""posicion"": 2}",2026-03-09 03:37:46.002+00
+mocampo@banco-ejemplo.com.ar,recuperacion,DOC-AUD-003,1.0,0,"{""consulta"": ""Q00246"", ""posicion"": 3}",2026-03-31 19:01:35.615+00
+mocampo@banco-ejemplo.com.ar,recuperacion,DOC-AUD-003,1.0,0,"{""consulta"": ""Q00298"", ""posicion"": 1}",2026-04-19 12:08:56.106+00
+mocampo@banco-ejemplo.com.ar,recuperacion,DOC-AUD-003,1.0,2,"{""consulta"": ""Q00298"", ""posicion"": 3}",2026-04-19 12:08:56.106+00
+mocampo@banco-ejemplo.com.ar,recuperacion,DOC-AUD-003,1.0,2,"{""consulta"": ""Q00355"", ""posicion"": 5}",2026-05-10 14:37:30.217+00
+mduarte@banco-ejemplo.com.ar,recuperacion,DOC-AUD-003,1.0,0,"{""consulta"": ""Q00394"", ""posicion"": 4}",2026-05-23 15:39:54.937+00

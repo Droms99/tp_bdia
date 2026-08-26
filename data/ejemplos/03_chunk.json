@@ -1,0 +1,69 @@
+{
+    "fragmentos": [
+        {
+            "orden": 0,
+            "texto": "Comunicación \"A\" 7724 — Requisitos mínimos de gestión de identidad digital Banco Central de la República Argentina. A las entidades financieras, a las empresas no financieras emisoras de tarjetas de crédito y a los proveedores de servicios de pago.\n\nEstablecer los requisitos mínimos que las entidades deben observar en la gestión de la identidad digital de sus clientes y usuarios, comprendiendo el alta, la autenticación, la recuperación de credenciales y la baja.\n\nToda operación que implique movimiento de fondos, alta de destinatarios de transferencia, modificación de límites operativos o cambio de datos de contacto requiere autenticación con al menos dos factores independientes, pertenecientes a categorías distintas entre las siguientes:\n\n Algo que el usuario conoce: contraseña, número de identificación personal.\n\n Algo que el usuario posee: dispositivo registrado, token físico o lógico, código de un solo uso.  Algo que el usuario es: característica biométrica.\n\nDos elementos de la misma categoría no constituyen dos factores independientes. En particular, una contraseña más una pregunta de seguridad no satisfacen este requisito.",
+            "tokens": 243,
+            "version": "1.0",
+            "documento": "DOC-BCRA-7724",
+            "metadatos": {
+                "seccion": "1. Objeto",
+                "version": "1.0",
+                "documento": "DOC-BCRA-7724",
+                "secciones": [
+                    "1. Objeto",
+                    "2. Autenticación reforzada"
+                ],
+                "formato_origen": "pdf",
+                "total_fragmentos": 3
+            },
+            "tsv_truncado": "'7724':3 'alta':62,79 'argentin':16 'autenticacion':64,95 'baj':71 'banc':11 'biometr':141 'cambi':89 'caracterist':140 'categori':104,147 'central':1 [...]",
+            "modelo_embedding": "hash-local-1024 (dim 1024, coseno)",
+            "embedding_primeras_8": [
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0.088081",
+                "0"
+            ],
+            "embedding_dimensiones": 1024
+        },
+        {
+            "orden": 1,
+            "texto": "Cuando se utilice un código de un solo uso enviado por mensaje de texto o correo electrónico, la entidad deberá considerar las limitaciones de ese canal y establecer controles compensatorios ante la sustitución fraudulenta de la línea del usuario. El código tendrá una vigencia máxima acotada y no podrá reutilizarse.\n\nCuando se utilice un factor biométrico, la entidad deberá implementar mecanismos de detección de prueba de vida. El cotejo de una imagen estática no satisface el requisito. Los datos biométricos se almacenarán como plantilla y con cifrado, y no podrán utilizarse para finalidades distintas de la verificación de identidad.\n\nEl proceso de recuperación de credenciales no podrá tener un nivel de seguridad inferior al del proceso de autenticación que restituye. La entidad no restablecerá credenciales por canales que no permitan verificar la identidad del solicitante con el mismo estándar.\n\nLas entidades deberán conservar el registro de los eventos de autenticación, de sus fallos y de las recuperaciones de credenciales, por el plazo establecido en las normas sobre conservación de documentación digital.",
+            "tokens": 235,
+            "version": "1.0",
+            "documento": "DOC-BCRA-7724",
+            "metadatos": {
+                "seccion": "3. Código de un solo uso",
+                "version": "1.0",
+                "documento": "DOC-BCRA-7724",
+                "secciones": [
+                    "3. Código de un solo uso",
+                    "4. Biometría",
+                    "5. Recuperación de credenciales",
+                    "6. Registro y conservación"
+                ],
+                "formato_origen": "pdf",
+                "total_fragmentos": 3
+            },
+            "tsv_truncado": "'acot':46 'almacen':82 'autenticacion':118,150 'biometr':56,80 'canal':26,127 'cifr':87 'codig':5,41 'compensatori':30 'conserv':143 'conservacion':16 [...]",
+            "modelo_embedding": "hash-local-1024 (dim 1024, coseno)",
+            "embedding_primeras_8": [
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0"
+            ],
+            "embedding_dimensiones": 1024
+        }
+    ],
+    "_descripcion": "Dos fragmentos, que son la unidad de recuperacion. El vector completo tiene 1024 dimensiones: aca se muestran las primeras ocho. La columna tsv es generada a partir del texto, asi que no puede desincronizarse de el. En metadatos va la seccion del documento a la que pertenece el fragmento, que es lo que permite citar la seccion y no el documento entero."
+}

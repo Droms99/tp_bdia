@@ -1,0 +1,13 @@
+usuario,entidad,entidad_id,operacion,datos_antes,datos_despues,creado_en
+fibarra@banco-ejemplo.com.ar,acl_documento,2,alta,,"{""documento"": ""DOC-AUD-003"", ""destinatario"": ""mocampo@banco-ejemplo.com.ar"", ""granularidad"": ""usuario""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,3,alta,,"{""documento"": ""DOC-AUD-003"", ""destinatario"": ""mduarte@banco-ejemplo.com.ar"", ""granularidad"": ""usuario""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,4,alta,,"{""documento"": ""DOC-AUD-003"", ""destinatario"": ""auditor"", ""granularidad"": ""rol""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,5,alta,,"{""documento"": ""DOC-AUD-005"", ""destinatario"": ""mocampo@banco-ejemplo.com.ar"", ""granularidad"": ""usuario""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,6,alta,,"{""documento"": ""DOC-AUD-005"", ""destinatario"": ""mduarte@banco-ejemplo.com.ar"", ""granularidad"": ""usuario""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,7,alta,,"{""documento"": ""DOC-AUD-005"", ""destinatario"": ""auditor"", ""granularidad"": ""rol""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,8,alta,,"{""documento"": ""DOC-AUD-007"", ""destinatario"": ""Auditoría Interna"", ""granularidad"": ""area""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,9,alta,,"{""documento"": ""DOC-AUD-009"", ""destinatario"": ""Auditoría Interna"", ""granularidad"": ""area""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,10,alta,,"{""documento"": ""DOC-AUD-009"", ""destinatario"": ""auditor"", ""granularidad"": ""rol""}",2026-01-02 12:00:00+00
+cbustos@banco-ejemplo.com.ar,acl_documento,11,alta,,"{""documento"": ""DOC-CMP-001"", ""destinatario"": ""Compliance"", ""granularidad"": ""area""}",2026-01-02 12:00:00+00
+cbustos@banco-ejemplo.com.ar,acl_documento,12,alta,,"{""documento"": ""DOC-CMP-001"", ""destinatario"": ""Riesgos"", ""granularidad"": ""area""}",2026-01-02 12:00:00+00
+fibarra@banco-ejemplo.com.ar,acl_documento,1,alta,,"{""documento"": ""DOC-AUD-001"", ""destinatario"": ""Auditoría Interna"", ""granularidad"": ""area""}",2026-01-02 12:00:00+00

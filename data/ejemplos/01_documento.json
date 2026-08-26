@@ -1,0 +1,66 @@
+{
+    "documentos": [
+        {
+            "area": "Auditoría Interna",
+            "tipo": "informe_investigacion",
+            "nivel": "restringido",
+            "codigo": "DOC-AUD-005",
+            "estado": "vigente",
+            "titulo": "Informe de investigación — desvíos reiterados en la conciliación de caja de una sucursal",
+            "metadatos": {
+                "paginas": 2,
+                "productor": "ReportLab PDF Library - (opensource)",
+                "formato_origen": "pdf",
+                "texto_extraido": true,
+                "requiere_otorgamiento_nominal": true
+            }
+        },
+        {
+            "area": "Compliance",
+            "tipo": "norma_externa",
+            "nivel": "publico",
+            "codigo": "DOC-BCRA-7724",
+            "estado": "vigente",
+            "titulo": "Comunicación \"A\" 7724 — Requisitos mínimos de gestión de identidad digital",
+            "metadatos": {
+                "alcance": "entidades financieras",
+                "paginas": 2,
+                "productor": "ReportLab PDF Library - (opensource)",
+                "formato_origen": "pdf",
+                "texto_extraido": true,
+                "organismo_emisor": "BCRA",
+                "numero_comunicacion": "7724"
+            }
+        },
+        {
+            "area": "Operaciones",
+            "tipo": "faq",
+            "nivel": "publico",
+            "codigo": "DOC-OPE-018",
+            "estado": "vigente",
+            "titulo": "Preguntas frecuentes de atención en sucursal",
+            "metadatos": {
+                "exportado_de": "sistema de gestion de casos",
+                "formato_origen": "csv",
+                "cantidad_entradas": 9,
+                "filas_desnormalizadas": 9
+            }
+        },
+        {
+            "area": "Tecnología",
+            "tipo": "documento_historico",
+            "nivel": "interno",
+            "codigo": "DOC-TEC-009",
+            "estado": "derogado",
+            "titulo": "Normas de uso aceptable de recursos informaticos",
+            "metadatos": {
+                "sin_acentos": true,
+                "conservado_por": "obligacion regulatoria de trazabilidad",
+                "formato_origen": "txt",
+                "sistema_origen": "BANCO EJEMPLO S.A. - GESTOR DOCUMENTAL - EXPORTACION TEXTO PLANO",
+                "motivo_derogacion": "Estas normas fueron absorbidas por la politica de seguridad de la informacion\nDOC-TEC-014 en junio de 2022, en el marco de la unificacion del cuerpo\nnormativo de seguridad en un documento unico. Su tratamiento de las\ncontrasenas y del almacenamiento removible quedo desactualizado frente a los\nrequisitos posteriores del Banco Central."
+            }
+        }
+    ],
+    "_descripcion": "Cuatro documentos de tipos distintos. Lo que hay que mirar es el campo metadatos: no tiene las mismas claves en los cuatro. Una norma externa trae organismo emisor y numero de comunicacion; un documento derogado trae el motivo de su derogacion; una FAQ, la cantidad de entradas. Modelar eso como columnas propias dejaria la tabla mayormente vacia: es la decision D6 del informe, con datos reales."
+}

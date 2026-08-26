@@ -1,0 +1,68 @@
+{
+    "cadena": {
+        "fuentes": [
+            {
+                "puntaje": 0.229882,
+                "seccion": "1. Antecedentes",
+                "version": "1.0",
+                "posicion": 1,
+                "documento": "DOC-AUD-003",
+                "nivel_del_documento": "restringido",
+                "texto_del_fragmento": "Nivel de confidencialidad: restringido. Este documento solo debe ser accedido por\nAuditoría Interna y por las personas explícitamente autorizadas por esa área. Su existencia\nno debe divulgarse fuera d [...]"
+            },
+            {
+                "puntaje": 0.145421,
+                "seccion": "6. Ambiente",
+                "version": "3.0",
+                "posicion": 2,
+                "documento": "DOC-RIE-003",
+                "nivel_del_documento": "confidencial",
+                "texto_del_fragmento": "El motor corre en el ambiente de riesgos, separado del núcleo bancario, y consume los datos por un proceso de extracción diario. Un desfasaje de más de 48 horas en esa extracción inhabilita el uso del [...]"
+            },
+            {
+                "puntaje": 0.140626,
+                "seccion": "5. Recomendaciones",
+                "version": "1.0",
+                "posicion": 3,
+                "documento": "DOC-AUD-003",
+                "nivel_del_documento": "restringido",
+                "texto_del_fragmento": "Se recomienda revisar integralmente la política de seguridad de la información para incorporar\nreglas explícitas sobre cuentas de servicio, doble aprobación para accesos privilegiados, y\nregistro inal [...]"
+            },
+            {
+                "puntaje": 0.126905,
+                "seccion": "1. Antecedentes",
+                "version": "1.0",
+                "posicion": 4,
+                "documento": "DOC-AUD-005",
+                "nivel_del_documento": "restringido",
+                "texto_del_fragmento": "Informe de investigación — desvíos reiterados en la conciliación de caja de una sucursal Nivel de confidencialidad: restringido. Este informe se refiere a la conducta de personas identificables y a un [...]"
+            },
+            {
+                "puntaje": 0.102239,
+                "seccion": "¿A partir de cuándo se considera que una cuota está en mora?",
+                "version": "1.2",
+                "posicion": 5,
+                "documento": "DOC-RIE-006",
+                "nivel_del_documento": "publico",
+                "texto_del_fragmento": "Material de consulta para el personal de atención. Las respuestas están redactadas para poder transmitirse al cliente tal como están escritas.\n\nDesde el día siguiente al vencimiento impago. El sistema [...]"
+            }
+        ],
+        "consulta": {
+            "area": "Auditoría Interna",
+            "texto": "que paso con la investigacion por accesos indebidos al nucleo bancario",
+            "usuario": "Marta Ocampo",
+            "creado_en": "2026-04-19T12:08:56.106+00:00",
+            "latencia_ms": 2168,
+            "habilitacion": "restringido",
+            "embedding_dimensiones": 1024
+        },
+        "respuesta": {
+            "texto": "Nivel de confidencialidad: restringido. Este documento solo debe ser accedido por\nAuditoría Interna y por las personas explícitamente autorizadas por esa área. Su existencia\nno debe divulgarse fuera de ese círculo. Es el caso extremo de acceso restringido del caso de\nuso: un analista de sucursal, un oficial de... [Fuente: DOC-AUD-003 v1.0, 1. Antecedentes]",
+            "modelo": "claude-opus-5",
+            "confianza": 0.818,
+            "tokens_salida": 153,
+            "tokens_entrada": 1024
+        }
+    },
+    "_descripcion": "La cadena completa de una consulta: pregunta, respuesta y las fuentes que la originaron, con su posicion en el ranking y su puntaje. Es lo que responde al requisito de registrar que documentos se usaron para construir cada respuesta. Notese que la fuente identifica la VERSION del documento, no el documento: si manana se publica una version nueva, esta respuesta sigue siendo reconstruible con el texto exacto que la origino."
+}

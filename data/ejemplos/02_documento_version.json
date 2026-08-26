@@ -1,0 +1,38 @@
+{
+    "versiones": [
+        {
+            "documento": "DOC-CMP-005",
+            "fragmentos": 1,
+            "hash_sha256": "82e3dd9e9ebde5c63b5c023918de0b5626f88fabbcfcac764d5113a36677339b",
+            "uri_original": "s3://tp-bdia-corpus/compliance/DOC-CMP-005_v1.0.docx",
+            "vigente_desde": "2021-01-01",
+            "vigente_hasta": "2023-06-30",
+            "longitud_texto": 1452,
+            "numero_version": "1.0",
+            "texto_truncado": "# Procedimiento de conocimiento del cliente\n\n## 1. Objetivo y alcance\n\nDescribe los pasos para identificar y conocer al cliente al momento de iniciar la relación comercial. Aplica al alta de personas humanas y jurídicas  [...]"
+        },
+        {
+            "documento": "DOC-CMP-005",
+            "fragmentos": 2,
+            "hash_sha256": "a0d22dc0a5bb7b9267e05f034e6f0243fa497246da9fe2ad9f0a740343c5bd6a",
+            "uri_original": "s3://tp-bdia-corpus/compliance/DOC-CMP-005_v2.0.docx",
+            "vigente_desde": "2023-07-01",
+            "vigente_hasta": "2025-08-31",
+            "longitud_texto": 2520,
+            "numero_version": "2.0",
+            "texto_truncado": "# Procedimiento de conocimiento del cliente\n\n## 1. Objetivo y alcance\n\nDescribe los pasos para identificar y conocer al cliente al momento de iniciar la relación comercial y durante toda su vigencia. Aplica al alta de pe [...]"
+        },
+        {
+            "documento": "DOC-CMP-005",
+            "fragmentos": 3,
+            "hash_sha256": "7d634dabbf980bd27dc6ae111579df14d3287566dbc87fa82251eb48792d55df",
+            "uri_original": "s3://tp-bdia-corpus/compliance/DOC-CMP-005_v3.0.docx",
+            "vigente_desde": "2025-09-01",
+            "vigente_hasta": null,
+            "longitud_texto": 2797,
+            "numero_version": "3.0",
+            "texto_truncado": "# Procedimiento de conocimiento del cliente\n\n## 1. Objetivo y alcance\n\nDescribe los pasos para identificar y conocer al cliente al iniciar la relación comercial y durante toda su vigencia. Aplica al alta de personas huma [...]"
+        }
+    ],
+    "_descripcion": "Las tres versiones sucesivas de un mismo documento. Cada una tiene su ventana de vigencia sin solaparse (restriccion version_vigencia_sin_solape), su propio hash del archivo original y su propio texto. El binario no se guarda: se guarda la URI del object storage. El texto va truncado en esta muestra."
+}
