@@ -76,8 +76,7 @@ tp_bdia/
 │   ├── consultas/         # consultas representativas
 │   └── indices_vistas/    # índices y vistas materializadas
 ├── etl/                   # fragmentación, embeddings y generación del dataset
-├── vectorial/             # modelo de datos vectorial
-└── anexos/                # material complementario
+└── vectorial/             # modelo de datos vectorial
 ```
 
 ## Cómo levantar el entorno

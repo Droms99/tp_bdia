@@ -463,10 +463,10 @@ no es la precisión sino distinguir **qué crece con la organización y qué cre
 | `documento` | Decenas de miles | Con el catálogo | Permanente |
 | `documento_version` | ~2 a 3 por documento | Con el catálogo | Permanente por obligación regulatoria |
 | `chunk` | Millones | Con el catálogo, multiplicado por la granularidad de fragmentación | Ligada a la versión |
-| `consulta` | ~1 millón por año | **Con el uso** | A definir; contiene posibles datos personales (R7) |
+| `consulta` | ~1 millón por año | **Con el uso** | 24 meses en detalle (14.5); contiene posibles datos personales (R7) |
 | `respuesta` | Una por consulta | **Con el uso** | Igual que `consulta` |
 | `respuesta_fuente` | 5 a 8 por respuesta: varios millones por año | **Con el uso** | Necesaria mientras la respuesta sea auditable |
-| `log_acceso`, `auditoria` | Decenas de millones acumulados | **Con el uso** | Definida por la política de auditoría, típicamente varios años |
+| `log_acceso`, `auditoria` | Decenas de millones acumulados | **Con el uso** | 6 años (14.5), por los plazos de conservación de una entidad regulada |
 
 Quedan así dos grupos con exigencias opuestas. El catálogo documental y sus fragmentos son
 grandes pero estables, y se optimizan para lectura. Las tablas de eventos —consultas, respuestas,
@@ -529,8 +529,8 @@ responde un tipo de pregunta que la otra no puede.
 |---|---|---|---|
 | **De referencia** | `area`, `rol`, `permiso`, `nivel_confidencialidad`, `tipo_documento`, `etiqueta`, `modelo_embedding` | Casi solo lectura | Permanente |
 | **Operacionales** | `usuario`, `acl_documento`, `documento`, `documento_version`, `documento_relacion`, `chunk` | Lectura intensiva, escritura controlada | Permanente; las versiones, por obligación regulatoria |
-| **De eventos** | `consulta`, `respuesta`, `respuesta_fuente`, `feedback` | Solo inserción, alto volumen | A definir por política (punto 14) |
-| **De auditoría** | `log_acceso`, `auditoria` | Solo inserción, no modificables | Definida por la política de auditoría |
+| **De eventos** | `consulta`, `respuesta`, `respuesta_fuente`, `feedback` | Solo inserción, alto volumen | 24 meses en detalle, después solo agregados (14.5) |
+| **De auditoría** | `log_acceso`, `auditoria` | Solo inserción, no modificables | 6 años (14.5) |
 | **Derivados** | Vistas materializadas del esquema `analytics` | Recalculables | No tienen retención propia |
 
 La diferencia entre eventos y auditoría no es de volumen: es de garantía. Un registro de eventos
@@ -1131,7 +1131,7 @@ puede referenciar una columna que todavía no existe— y dos en `db/indices_vis
 
 | # | Script | Qué implementa |
 |---|---|---|
-| 1 | `01_extensiones.sql` | `vector`, `pg_trgm`, `unaccent`, `pgcrypto`, `btree_gist`, y la configuración de búsqueda de texto completo en español (`espanol_unaccent`) |
+| 1 | `01_extensiones.sql` | `vector`, `pg_trgm`, `unaccent`, `btree_gist`, y la configuración de búsqueda de texto completo en español (`espanol_unaccent`) |
 | 2 | `02_esquemas_roles.sql` | Los esquemas `raw`/`core`/`analytics` (punto 12) y los cuatro roles de conexión (`tp_lector`, `tp_curador`, `tp_auditor`, `tp_admin`) |
 | 3 | `03_tablas.sql` | Las 22 tablas del modelo lógico (punto 5), con sus claves, restricciones de verificación y de unicidad, y `COMMENT ON` |
 | 4 | `04_particiones.sql` | Las particiones mensuales de 2026 más una partición `DEFAULT` para las cinco tablas de eventos, generadas con un `DO` block en vez de repetir el mismo `CREATE TABLE` sesenta veces |
@@ -2048,7 +2048,7 @@ Lo que se analiza y no se construye, siguiendo la aclaración de la cátedra:
   mano cada vez. La partición `DEFAULT` es la red de seguridad mientras tanto: una fila fuera
   del rango declarado no rechaza el `INSERT`, cae ahí, y su acumulación es la señal de que hace
   falta extender el rango.
-- **Purga por partición.** Una vez definida la política de retención (14.7), eliminar datos
+- **Purga por partición.** Una vez definida la política de retención (14.5), eliminar datos
   vencidos es `DROP TABLE` de la partición completa, sin `DELETE` fila por fila ni el
   `VACUUM` posterior que un borrado masivo exige. Es el motivo principal por el que estas
   tablas están particionadas, más allá de la poda en las lecturas.

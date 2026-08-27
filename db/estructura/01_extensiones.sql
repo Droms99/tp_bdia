@@ -8,9 +8,6 @@
 -- Busqueda por similitud sobre los fragmentos (informe 2.1.C).
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Hash SHA-256 de los archivos originales, para detectar reingesta (D5, R4).
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 -- Normalizacion de acentos en la busqueda de texto completo: la documentacion
 -- esta en espanol y las consultas de los usuarios rara vez se escriben con tildes.
 CREATE EXTENSION IF NOT EXISTS unaccent;

@@ -20,7 +20,7 @@ psql:
 # Verifica que las extensiones que necesita el modelo esten disponibles en la imagen.
 estado:
 	docker compose exec -T db psql -U $${POSTGRES_USER:-tp_bdia} -d $${POSTGRES_DB:-tp_bdia} \
-		-c "SELECT name, default_version, installed_version FROM pg_available_extensions WHERE name IN ('vector','pg_trgm','unaccent','pgcrypto') ORDER BY name;"
+		-c "SELECT name, default_version, installed_version FROM pg_available_extensions WHERE name IN ('vector','pg_trgm','unaccent','btree_gist') ORDER BY name;"
 
 # Borra el volumen: se pierden todos los datos y se vuelve a empezar de cero.
 reset:

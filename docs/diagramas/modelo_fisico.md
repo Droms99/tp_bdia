@@ -24,7 +24,6 @@ flowchart TB
         vector["vector 0.8.6<br/>búsqueda por similitud"]
         trgm["pg_trgm 1.6<br/>tolerancia a tipeo"]
         unacc["unaccent 1.1<br/>normalización de acentos"]
-        crypto["pgcrypto 1.3<br/>hash SHA-256"]
         bgist["btree_gist 1.7<br/>igualdad dentro de GiST"]
     end
 
@@ -78,7 +77,6 @@ Cada una responde a una necesidad concreta del relevamiento, no a una lista de d
 | `vector` | 0.8.6 | Tipo `vector` e índice HNSW sobre los fragmentos | No hay búsqueda semántica |
 | `pg_trgm` | 1.6 | Búsqueda tolerante a errores de tipeo sobre el título | El curador tiene que escribir el título exacto |
 | `unaccent` | 1.1 | Normalización de acentos en la búsqueda de texto completo | `gestion` y `gestión` son lexemas distintos |
-| `pgcrypto` | 1.3 | Hash SHA-256 de los archivos originales | No se detecta la reingesta del mismo archivo |
 | `btree_gist` | 1.7 | Operador de igualdad dentro de un índice GiST | La restricción de exclusión de RD2 no se puede declarar |
 
 Sobre `unaccent`: la configuración `spanish` que trae PostgreSQL lematiza pero no normaliza
