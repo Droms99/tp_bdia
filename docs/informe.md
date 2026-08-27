@@ -23,7 +23,7 @@ Integrantes: Martin Birman · Gonzalo Castro · Hernando Scheidl
 12. [Arquitectura de datos](#12-arquitectura-de-datos)
 13. [Seguridad, permisos y aislamiento](#13-seguridad-permisos-y-aislamiento)
 14. [Escalabilidad y rendimiento](#14-escalabilidad-y-rendimiento)
-15. Conclusiones
+15. [Conclusiones](#15-conclusiones)
 
 ---
 
@@ -2132,4 +2132,86 @@ pregunta.
 
 ## 15. Conclusiones
 
-*(Pendiente — los tres.)*
+### 15.1 El problema era el control de acceso, no la búsqueda
+
+El punto 1 planteó que la dificultad de este caso no estaba donde parecía. Un sistema RAG invita a
+concentrarse en la calidad de la recuperación semántica, y el relevamiento mostró que el riesgo
+dominante era otro: una búsqueda por similitud es ciega al permiso, y como el modelo de lenguaje
+redacta con lo que se le entrega, un fragmento no autorizado filtra su contenido aunque el
+documento nunca se muestre.
+
+Todo el diseño se ordenó alrededor de esa observación. La decisión D1 —que el filtro viva dentro
+del motor y no en la aplicación— no es una preferencia de implementación: es lo que permite que el
+recuperador siga siendo ciego al permiso sin que eso constituya un riesgo.
+
+### 15.2 Qué demuestra la implementación mínima
+
+La prueba funcional de la capa de datos cierra el argumento con evidencia y no con una afirmación.
+
+**El acceso se resuelve en el motor.** La misma pregunta, con el mismo vector, ejecutada por dos
+usuarios distintos, devuelve conjuntos de fragmentos distintos. Una analista de Operaciones con
+habilitación *interno* no recupera el informe de investigación de accesos indebidos; una auditora
+con habilitación *restringido* lo recupera en primera posición. La consulta que ejecutan es
+idéntica. Además, el rol de la aplicación no puede siquiera leer `acl_documento`: la tabla que
+decide quién ve qué no es visible para quien consulta.
+
+**La vigencia es un criterio de recuperación efectivo.** Los cuatro documentos derogados del
+corpus conservan sus ocho fragmentos vectorizados en la base y fueron citados como fuente cero
+veces. Se conservan por obligación regulatoria y no alimentan respuestas, que es exactamente lo
+que exigía D3.
+
+**La trazabilidad es reconstruible.** Para cada respuesta se puede recuperar qué fragmento, de qué
+versión de qué documento, con qué puntaje y en qué posición del ranking la originó.
+
+**Las ocho verificaciones de coherencia del cierre dan cero**, incluidas las dos que sostienen el
+modelo de seguridad: ninguna fuente citada pertenecía a un documento que el autor de la consulta
+no podía ver (RD11), y ninguna provenía de documentación derogada.
+
+### 15.3 Las decisiones que resultaron determinantes
+
+**Colgar los fragmentos de la versión y no del documento (D2).** Es lo que hace posible conservar
+el histórico sin contaminar la recuperación y reconstruir con qué texto exacto se respondió una
+consulta vieja. Sin esa decisión, publicar una versión nueva obligaba a elegir entre perder la
+trazabilidad o ensuciar la búsqueda.
+
+**Separar vigencia de permiso.** El perfil del auditor interno fue el que forzó tratarlos como
+ejes independientes. Resolverlos con las mismas reglas habría hecho imposible el único caso de uso
+que justifica conservar la documentación derogada.
+
+**Exigir dos condiciones para el acceso.** El nivel de confidencialidad funciona como techo y el
+otorgamiento como llave. Con una sola de las dos, un error de clasificación o un permiso mal
+emitido alcanzaría por sí solo para producir una fuga.
+
+**Normalizar por seguridad y no por prolijidad.** En este modelo, una anomalía de actualización
+sobre la clasificación de un documento no produce un dato inconsistente: produce un fragmento
+prohibido que la recuperación entrega. Ese criterio fue el que llevó a rechazar la
+desnormalización más tentadora del diseño —copiar el nivel de confidencialidad al fragmento para
+ahorrar dos uniones en la consulta más caliente— y a aceptar redundancia únicamente donde el motor
+la impone o la mantiene por su cuenta.
+
+**Resolverlo con un motor único.** La razón no fue el volumen sino la seguridad. Cada alternativa
+evaluada resolvía bien una de las exigencias del caso, y ninguna resolvía la del control de acceso
+sin devolverle el filtro a la aplicación.
+
+### 15.4 Qué no establece este trabajo
+
+- **La calidad semántica de la recuperación.** Los vectores se generan con un embedder
+  determinístico local, elegido para que el trabajo sea reproducible sin credenciales ni costos.
+  Sirve para validar el modelo de datos y las consultas; no dice nada sobre qué tan bien
+  respondería el sistema con un modelo de embeddings real.
+- **El rendimiento a escala.** El corpus cargado son 46 documentos y 116 fragmentos. Las
+  decisiones de particionado e indexado se justificaron contra los volúmenes estimados en 2.4,
+  pero no se midieron sobre ellos.
+- **La arquitectura desplegada.** Réplicas, orquestación de la ingesta, almacenamiento de objetos
+  y continuidad operativa se analizaron y se justificaron; no se implementaron, por decisión de
+  alcance.
+
+### 15.5 Qué haría falta para llevarlo a producción
+
+Reemplazar el embedder por un modelo real y revectorizar el corpus, con `modelo_embedding`
+registrando el cambio; aplicar la política de retención propuesta en 14.5 sobre las particiones
+vencidas; automatizar la creación de particiones; y montar el almacenamiento de objetos que hoy se
+modela como URI y hash.
+
+Ninguna de esas cuatro cosas cambia el modelo de datos, y eso es probablemente el mejor indicio de
+que el diseño resistió: lo que falta es despliegue, no rediseño.
